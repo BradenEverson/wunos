@@ -8,7 +8,7 @@ use warp::Filter;
 async fn main() -> Result<()> {
     let state = Arc::new(GameState::new());
 
-    let routes = warp::path("ws")
+    let routes = warp::path::end()
         .and(warp::ws())
         .and(with_state(state.clone()))
         .map(|ws: warp::ws::Ws, state: Arc<GameState>| {
