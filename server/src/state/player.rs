@@ -7,12 +7,19 @@ use crate::res::err::Result;
 pub struct Player {
     id: Uuid,
     connection: UnboundedSender<warp::ws::Message>,
-    name: Option<String>
+    pub name: Option<String>
 }
 
 impl Player {
     pub fn new(connection: UnboundedSender<warp::ws::Message>) -> Self {
         Self { id: Uuid::new_v4(), connection, name: None }
+    }
+
+    pub fn get_name(&self) -> Option<&str> {
+        match &self.name {
+            Some(inner_name) => Some(&inner_name),
+            None => None
+        }
     }
 
     pub fn set_name(&mut self, new_name: &str) {
