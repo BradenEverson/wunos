@@ -21,10 +21,20 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
             match result {
                 Ok(msg) => {
                     if let Ok(text) = msg.to_str() {
-                        let mut state_players = state.players.lock().unwrap();
-                        let player = state_players.borrow_mut().get_mut(&player_id).unwrap();
 
-                        if let Some(name) = player.get_name() {
+                        let player_name = {
+                            let mut state_players = state.players.lock().unwrap();
+                            let player = state_players.get_mut(&player_id).unwrap();
+
+                            if let Some(name) = player.get_name() {
+                                Some(name.to_string())
+                            } else {
+                                player.set_name(text.trim());
+                                None
+                            }
+                        };
+
+                        if let Some(name) = player_name {
                             let broadcast_msg = Message::text(format!("{}: {}", name, text));
 
                             if let Err(e) = state.broadcast(broadcast_msg) {
@@ -32,8 +42,6 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
                                 break;
                             }
                         } else {
-                            player.set_name(text.trim());
-                            //player.send_msg(&Message::text(format!("Welcome, {}!", text.trim()))).expect("Failed to send message to client");
                             state.broadcast(Message::text(format!("{} has joined the party", text.trim()))).expect("Failed to send welcome message to all clients");
                         }
                     }
