@@ -7,7 +7,7 @@ use super::player::Player;
 
 #[derive(Default)]
 pub struct GameState {
-    players: Mutex<Vec<Player>>,        
+    pub players: Mutex<Vec<Player>>,        
 }
 
 impl GameState {

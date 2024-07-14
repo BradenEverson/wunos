@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use server::{res::err::Result, state::state_man::GameState};
+use server::{client::handler::handle_connection, res::err::Result, state::state_man::GameState};
 use warp::Filter;
 
 
@@ -12,10 +12,12 @@ async fn main() -> Result<()> {
         .and(warp::ws())
         .and(with_state(state.clone()))
         .map(|ws: warp::ws::Ws, state: Arc<GameState>| {
-
+            ws.on_upgrade(move |socket| handle_connection(socket, state))
         });
 
-    warp::serve(routes).run(([0,0,0,1], 7878)).await;
+    println!("Listening on 127.0.0.1:7878");
+    warp::serve(routes).run(([127,0,0,1], 7878)).await;
+
 
     Ok(())
 }
