@@ -1,0 +1,66 @@
+use super::card::{Card, Color};
+use rand::{seq::SliceRandom, thread_rng};
+
+
+pub struct Deck {
+    deck: Vec<Card>,
+    facing: Vec<Card>,
+    in_play: Vec<Card>
+}
+
+impl Deck {
+    pub fn new() -> Self {
+        let mut deck = vec![];
+        let facing = vec![];
+        let in_play = vec![];
+
+        for color in Color::iterator() {
+            deck.push(Card::Normal(*color, 0));
+
+            for i in 1..=9 {
+                deck.push(Card::Normal(*color, i));
+                deck.push(Card::Normal(*color, i));
+            }
+            deck.push(Card::DrawTwo(*color));
+            deck.push(Card::DrawTwo(*color));
+
+            deck.push(Card::Reverse(*color));
+            deck.push(Card::Reverse(*color));
+
+            deck.push(Card::Skip(*color));
+            deck.push(Card::Skip(*color));
+        }
+
+        for _ in 0..4 {
+            deck.push(Card::Wild);
+            deck.push(Card::DrawFour);
+        }
+
+        deck.shuffle(&mut thread_rng());
+
+        Self { deck, facing, in_play }
+    }
+
+    pub fn reshuffle(&mut self) {
+        self.deck.extend(self.facing.drain(0..self.facing.len()));
+
+        self.deck.shuffle(&mut thread_rng());
+    }
+
+    pub fn deck_size(&self) -> usize {
+        self.deck.len()
+    }
+
+    pub fn start_game(&mut self) {
+        if let Some(card) = self.deck.pop() {
+            self.facing.push(card)
+        }
+    }
+
+    pub fn get_facing(&self) -> Option<&Card> {
+        match self.facing.len() {
+            0 => None,
+            _ => Some(&self.facing[self.facing.len() - 1])
+        }
+    }
+}

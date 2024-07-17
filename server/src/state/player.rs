@@ -2,19 +2,20 @@ use rand::Rng;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
-use crate::res::err::Result;
+use crate::{game::card::Card, res::err::Result};
 
 #[derive(Clone, Debug)]
 pub struct Player {
     id: Uuid,
     txt_color: (u8, u8, u8),
     connection: UnboundedSender<warp::ws::Message>,
-    pub name: Option<String>
+    pub name: Option<String>,
+    hand: Vec<Card>
 }
 
 impl Player {
     pub fn new(connection: UnboundedSender<warp::ws::Message>) -> Self {
-        Self { id: Uuid::new_v4(), connection, name: None, txt_color: gen_color() }
+        Self { id: Uuid::new_v4(), connection, name: None, txt_color: gen_color(), hand: vec![] }
     }
 
     pub fn get_color(&self) -> (u8, u8, u8) {
