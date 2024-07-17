@@ -1,4 +1,4 @@
-use std::{borrow::BorrowMut, sync::Arc};
+use std::sync::Arc;
 
 use futures_util::{stream::StreamExt, SinkExt};
 use tokio::sync::mpsc;
@@ -29,8 +29,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
                             if let Some(name) = player.get_name() {
                                 Some(name.to_string())
                             } else {
-                                player.set_name(text.trim());
-                                None
+                                player.set_name(text.trim())
                             }
                         };
 
@@ -65,6 +64,6 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
         }
     });
 
-    let entry = Message::text(format!("Welcome new player, please enter your name:"));
+    let entry = Message::text("Enter your name: ".to_string());
     tx.send(entry).unwrap();
 }
