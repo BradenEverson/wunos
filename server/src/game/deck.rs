@@ -63,4 +63,13 @@ impl Deck {
             _ => Some(&self.facing[self.facing.len() - 1])
         }
     }
+
+    pub fn draw(&mut self) -> Card {
+        if let Some(card) = self.deck.pop() {
+            card
+        } else {
+            self.reshuffle();
+            self.deck.pop().unwrap()
+        }
+    }
 }
