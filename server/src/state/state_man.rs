@@ -4,11 +4,12 @@ use uuid::Uuid;
 
 use crate::res::err::Result;
 
-use super::player::Player;
+use super::{msg::DynMessage, player::Player};
 
 
 #[derive(Default)]
 pub struct GameState {
+    pub in_game: bool,
     pub players: Mutex<HashMap<Uuid, Player>>,        
 }
 
@@ -29,7 +30,7 @@ impl GameState {
         self.players.lock().expect("Poisoned Mutex :(").len()
     }
 
-    pub fn broadcast(&self, msg: warp::ws::Message) -> Result<()> {
+    pub fn broadcast(&self, msg: DynMessage) -> Result<()> {
         let connections = self.players.lock().expect("Poisoned Mutex :(");
 
         for (_, player) in connections.iter() {

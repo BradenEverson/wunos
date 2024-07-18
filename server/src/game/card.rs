@@ -1,11 +1,13 @@
 use std::slice::Iter;
 
+use serde::{Deserialize, Serialize};
+
 const SKIP: u8 = 10;
 const REVERSE: u8 = 11;
 const PLUS_TWO: u8 = 12;
 const PLUS_FOUR: u8 = 13;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum Card {
     Normal(Color, u8),
     DrawTwo(Color),
@@ -64,7 +66,7 @@ impl PartialEq for Card {
     }
 }
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum Color {
     None,
     Red,

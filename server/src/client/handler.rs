@@ -5,7 +5,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 use warp::filters::ws::Message;
 
-use crate::state::{player::Player, state_man::GameState};
+use crate::state::{msg::{Action, DynMessage}, player::{Player, Role}, state_man::GameState};
 
 pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
     let (mut sender, mut receiver) = ws.split();
@@ -18,6 +18,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
 
     if state.num_players() == 0 {
         player.set_admin();
+        player.send_msg(&DynMessage::broadcast("You're admin! Please type START to start the game when you'd like")).expect("Message send error");
     }
 
     state.players.lock().unwrap().insert(player_id, player);
@@ -39,15 +40,30 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
                             }
                         };
 
-                        if let Some(name) = player_name {
-                            let broadcast_msg = Message::text(format!("{}: {}", name, text));
+                        if let Some(_) = player_name {
+                            match text.trim() {
+                                "START" => {
+                                    let role = {
+                                        state.players.lock().unwrap().get(&player_id).unwrap().role.clone()
+                                    };
 
-                            if let Err(e) = state.broadcast(broadcast_msg) {
-                                eprintln!("Message broadcast error: {}", e);
-                                break;
+                                    match role {
+                                        Role::Admin => {println!("Admin wants us to start")},
+                                        Role::User => {}
+                                    }
+                                },
+                                _ => {
+                                    let broadcast_msg = DynMessage::new_msg(player_id, Action::Message(text.to_string()));
+
+                                    if let Err(e) = state.broadcast(broadcast_msg) {
+                                        eprintln!("Message broadcast error: {}", e);
+                                        break;
+                                    }
+                                }
                             }
+
                         } else {
-                            state.broadcast(Message::text(format!("{} has joined the party", text.trim()))).expect("Failed to send welcome message to all clients");
+                            state.broadcast(DynMessage::broadcast(&format!("{} has joined the party", text.trim()))).expect("Failed to send welcome message to all clients");
                         }
                     }
                 }, 

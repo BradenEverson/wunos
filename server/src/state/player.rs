@@ -1,8 +1,12 @@
+use std::cmp::Ordering;
+
 use rand::Rng;
 use tokio::sync::mpsc::UnboundedSender;
 use uuid::Uuid;
 
 use crate::{game::card::Card, res::err::Result};
+
+use super::msg::DynMessage;
 
 #[derive(Clone, Debug)]
 pub struct Player {
@@ -47,10 +51,25 @@ impl Player {
         tmp_name
     }
 
-    pub fn send_msg(&self, message: &warp::ws::Message) -> Result<()> {
-        self.connection.send(message.clone())?;
+    pub fn send_msg(&self, message: &DynMessage) -> Result<()> {
+        self.connection.send(message.clone().into())?;
 
         Ok(())
+    }
+
+    pub fn give_card(&mut self, card: Card) {
+        self.hand.push(card)
+    }
+
+    pub fn take(&mut self, loc: usize) -> Option<Card> {
+        match self.hand.len().cmp(&loc) {
+            Ordering::Less => Some(self.hand.remove(loc)),
+            _ => None
+        }
+    }
+
+    pub fn hand_size(&self) -> usize {
+        self.hand.len()
     }
 }
 
