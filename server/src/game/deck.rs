@@ -64,6 +64,11 @@ impl Deck {
         }
     }
 
+    #[cfg(test)]
+    pub fn set_facing(&mut self, face: Card) {
+        self.facing.push(face)
+    }
+
     pub fn play(&mut self, to_play: Card) -> Option<&Card> {
 
         let curr = if let Some(card) = self.get_facing() {
@@ -74,7 +79,7 @@ impl Deck {
 
         if curr == &to_play {
             self.in_play.push(to_play);
-            Some(&self.in_play[self.in_play.len()])
+            Some(&self.in_play[self.in_play.len() - 1])
         } else {
             None
         }
