@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Mutex};
 
 use uuid::Uuid;
 
-use crate::res::err::Result;
+use crate::{game::deck::Deck, res::err::Result};
 
 use super::{msg::DynMessage, player::Player};
 
@@ -10,6 +10,8 @@ use super::{msg::DynMessage, player::Player};
 #[derive(Default)]
 pub struct GameState {
     pub in_game: bool,
+    pub turn: Uuid,
+    pub deck: Mutex<Deck>,
     pub players: Mutex<HashMap<Uuid, Player>>,        
 }
 

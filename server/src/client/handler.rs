@@ -16,6 +16,10 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
 
     let mut player = Player::new(tx.clone());
 
+    if state.in_game {
+
+    }
+
     if state.num_players() == 0 {
         player.set_admin();
         player.send_msg(&DynMessage::broadcast("You're admin! Please type START to start the game when you'd like")).expect("Message send error");
@@ -28,8 +32,57 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
             match result {
                 Ok(msg) => {
                     if let Ok(text) = msg.to_str() {
+                        if let Ok(action) = serde_json::from_str::<Action>(text) {
+                            match action {
+                                Action::Message(txt) => {
+                                    // Broadcast message from user to everyone else
+                                },
+                                Action::Start => { 
+                                    // Double check they are admin, if so start game
+                                    if state.in_game {
+                                        continue;
+                                    }
 
-                        let player_name = {
+                                    //state.turn = player_id;
+                                    //state.in_game = true;
+
+                                    let curr_card = {
+                                        state.deck.lock().unwrap().start_game();
+                                        state.deck.lock().unwrap().get_facing().unwrap().clone()
+                                    };
+
+                                    state.broadcast(DynMessage::top_card(curr_card)).expect("Broadcast Message Failure");
+                                },
+                                Action::Win => {
+                                    // Check game exists, then what players hand size is
+                                    if !state.in_game {
+                                        continue;
+                                    }
+                                },
+                                Action::DrawCard => {
+                                    // Draw card for user and send it back as a drawn card
+                                    if !state.in_game || state.turn != player_id {
+                                        continue;
+                                    }
+                                },
+                                Action::PlayCard(card) => {
+                                    // Check if card can be played on top of current deck, if so do
+                                    // it and return a success. If not then return a failure
+                                    if !state.in_game || state.turn != player_id {
+                                        continue;
+                                    }
+                                    
+                                },
+                                Action::SetName(name) => {
+                                    // Set user's name to `name`
+                                    { state.players.lock().unwrap().get_mut(&player_id).unwrap().set_name(&name) };
+                                },
+                                Action::DrawnCard(_) => { unreachable!("User will never initialize a DrawnCard action") },
+                                Action::TopCard(_) => { unreachable!("User will never call TopCard") },
+
+                            }
+                        }
+                        /*let player_name = {
                             let mut state_players = state.players.lock().unwrap();
                             let player = state_players.get_mut(&player_id).unwrap();
 
@@ -64,7 +117,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
 
                         } else {
                             state.broadcast(DynMessage::broadcast(&format!("{} has joined the party", text.trim()))).expect("Failed to send welcome message to all clients");
-                        }
+                        }*/
                     }
                 }, 
                 Err(e) => {

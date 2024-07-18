@@ -8,6 +8,12 @@ pub struct Deck {
     in_play: Vec<Card>
 }
 
+impl Default for Deck {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Deck {
     pub fn new() -> Self {
         let mut deck = vec![];

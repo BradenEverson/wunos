@@ -1,17 +1,16 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 use warp::filters::ws::Message;
 
 use crate::game::card::Card;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynMessage {
-    sender: Option<Uuid>,
+    sender: Option<String>,
     action: Action
 }
 
 impl DynMessage {
-    pub fn new_msg(from: Uuid, action: Action) -> Self {
+    pub fn new_msg(from: String, action: Action) -> Self {
         Self { sender: Some(from), action }
     }
 
@@ -19,8 +18,11 @@ impl DynMessage {
         Self { sender: None, action: Action::Message(text.into()) }
     }
 
-    pub fn draw(player: Uuid) -> Self {
-        Self { sender: Some(player), action: Action::Win(player) }
+    pub fn draw(drawn: Card) -> Self {
+        Self { sender: None, action: Action::DrawnCard(drawn) }
+    }
+    pub fn top_card(top: Card) -> Self {
+        Self { sender: None, action: Action::TopCard(top) }
     }
 }
 
@@ -35,8 +37,11 @@ impl Into<Message> for DynMessage {
 pub enum Action {
     Message(String),
     PlayCard(Card),
-    Win(Uuid),
+    Win,
     DrawCard,
-    DrawnCard(Card)
+    DrawnCard(Card),
+    Start,
+    TopCard(Card),
+    SetName(String)
 }
 
