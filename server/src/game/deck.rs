@@ -32,8 +32,8 @@ impl Deck {
         }
 
         for _ in 0..4 {
-            deck.push(Card::Wild);
-            deck.push(Card::DrawFour);
+            deck.push(Card::Wild(Color::None));
+            deck.push(Card::Wild(Color::None));
         }
 
         deck.shuffle(&mut thread_rng());
@@ -64,6 +64,21 @@ impl Deck {
         }
     }
 
+    pub fn play(&mut self, to_play: Card) -> Option<&Card> {
+
+        let curr = if let Some(card) = self.get_facing() {
+            card
+        } else {
+            return None;
+        };
+
+        if curr == &to_play {
+            
+        }
+
+        None
+    }
+
     pub fn draw(&mut self) -> Card {
         if let Some(card) = self.deck.pop() {
             card
@@ -72,4 +87,5 @@ impl Deck {
             self.deck.pop().unwrap()
         }
     }
+
 }

@@ -1,17 +1,72 @@
 use std::slice::Iter;
 
+const SKIP: u8 = 10;
+const REVERSE: u8 = 11;
+const PLUS_TWO: u8 = 12;
+const PLUS_FOUR: u8 = 13;
+
 #[derive(Copy, Clone, Debug)]
 pub enum Card {
     Normal(Color, u8),
     DrawTwo(Color),
     Reverse(Color),
     Skip(Color),
-    Wild,
-    DrawFour
+
+    Wild(Color),
+    DrawFour(Color),
 }
 
-#[derive(Copy, Clone, Debug)]
+impl Card {
+
+    pub fn color(&self) -> Color {
+        match self {
+            Card::Normal(color, _) 
+                | Card::DrawTwo(color) 
+                | Card::Skip(color) 
+                | Card::Wild(color) 
+                | Card::DrawFour(color) 
+                | Card::Reverse(color) => {
+                *color
+            }
+            _ => Color::None
+        }
+    }
+
+    pub fn number(&self) -> u8 {
+        match self {
+            Card::Normal(_, num) => *num,
+            Card::Wild(_) => 99,
+            Card::DrawFour(_) => PLUS_FOUR,
+            Card::Reverse(_) => REVERSE,
+            Card::Skip(_) => SKIP,
+            Card::DrawTwo(_) => PLUS_TWO
+        }
+    }
+}
+
+impl PartialEq for Card {
+    fn eq(&self, other: &Self) -> bool {
+
+        match other {
+            Card::Wild(_) | Card::DrawFour(_) => { return true },
+            _ => {}
+        };
+
+        if self.color() == other.color() {
+            return true;
+        }
+        
+        if self.number() == other.number() {
+            return true;
+        }
+
+        false
+    }
+}
+
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum Color {
+    None,
     Red,
     Yellow,
     Green,
@@ -25,3 +80,4 @@ impl Color {
         COLORS.iter()
     }
 }
+
