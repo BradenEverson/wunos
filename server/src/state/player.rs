@@ -7,15 +7,26 @@ use crate::{game::card::Card, res::err::Result};
 #[derive(Clone, Debug)]
 pub struct Player {
     id: Uuid,
+    pub role: Role,
     txt_color: (u8, u8, u8),
     connection: UnboundedSender<warp::ws::Message>,
     pub name: Option<String>,
     hand: Vec<Card>
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Role {
+    Admin,
+    User
+}
+
 impl Player {
     pub fn new(connection: UnboundedSender<warp::ws::Message>) -> Self {
-        Self { id: Uuid::new_v4(), connection, name: None, txt_color: gen_color(), hand: vec![] }
+        Self { id: Uuid::new_v4(), connection, name: None, txt_color: gen_color(), hand: vec![], role: Role::User }
+    }
+
+    pub fn set_admin(&mut self) {
+        self.role = Role::Admin
     }
 
     pub fn get_color(&self) -> (u8, u8, u8) {

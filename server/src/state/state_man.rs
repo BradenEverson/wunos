@@ -17,6 +17,18 @@ impl GameState {
         Self::default()
     }
 
+    pub fn add_player(&mut self, id: Uuid, player: &mut Player) {
+        if self.num_players() == 0 {
+            player.set_admin();
+        }
+
+        self.players.lock().unwrap().insert(id, player.clone());
+    }
+
+    pub fn num_players(&self) -> usize {
+        self.players.lock().expect("Poisoned Mutex :(").len()
+    }
+
     pub fn broadcast(&self, msg: warp::ws::Message) -> Result<()> {
         let connections = self.players.lock().expect("Poisoned Mutex :(");
 

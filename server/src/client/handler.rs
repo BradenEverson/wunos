@@ -14,7 +14,13 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<GameState>) {
 
     let player_id = Uuid::new_v4();
 
-    state.players.lock().unwrap().insert(player_id, Player::new(tx.clone()));
+    let mut player = Player::new(tx.clone());
+
+    if state.num_players() == 0 {
+        player.set_admin();
+    }
+
+    state.players.lock().unwrap().insert(player_id, player);
 
     tokio::spawn(async move {
         while let Some(result) = receiver.next().await {
