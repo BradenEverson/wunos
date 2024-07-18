@@ -73,10 +73,11 @@ impl Deck {
         };
 
         if curr == &to_play {
-            
+            self.in_play.push(to_play);
+            Some(&self.in_play[self.in_play.len()])
+        } else {
+            None
         }
-
-        None
     }
 
     pub fn draw(&mut self) -> Card {
