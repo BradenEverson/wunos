@@ -77,11 +77,7 @@ impl Deck {
 
     pub fn play(&mut self, to_play: Card) -> Option<&Card> {
 
-        let curr = if let Some(card) = self.get_facing() {
-            card
-        } else {
-            return None;
-        };
+        let curr = self.get_facing()?;
 
         if curr == &to_play {
             self.in_play.push(to_play);

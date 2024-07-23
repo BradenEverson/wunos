@@ -26,9 +26,9 @@ impl DynMessage {
     }
 }
 
-impl Into<Message> for DynMessage {
-    fn into(self) -> Message {
-        let text = serde_json::to_string(&self).unwrap();
+impl From<DynMessage> for Message {
+    fn from(val: DynMessage) -> Self {
+        let text = serde_json::to_string(&val).unwrap();
         Message::text(text)
     }
 }

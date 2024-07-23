@@ -17,9 +17,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
 
     let mut player = Player::new(tx.clone());
 
-    if state.read().unwrap().in_game {
-
-    }
+    state.read().unwrap().in_game;
 
     if state.read().unwrap().num_players() == 0 {
         player.set_admin();
@@ -59,7 +57,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                         let mut write_state = state.write().unwrap();
 
                                         write_state.deck.start_game();
-                                        write_state.deck.get_facing().unwrap().clone()
+                                        *write_state.deck.get_facing().unwrap()
                                     };
 
                                     state.read().unwrap().broadcast(DynMessage::top_card(curr_card)).expect("Broadcast Message Failure");
@@ -86,7 +84,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                 },
                                 Action::SetName(name) => {
                                     // Set user's name to `name`
-                                    { state.write().unwrap().players.get_mut(&player_id).unwrap().set_name(&name) };
+                                    state.write().unwrap().players.get_mut(&player_id).unwrap().set_name(&name);
                                     player_name = Some(name);
                                 },
                                 Action::DrawnCard(_) => { unreachable!("User will never initialize a DrawnCard action") },
