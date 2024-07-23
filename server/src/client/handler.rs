@@ -17,8 +17,6 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
 
     let mut player = Player::new(tx.clone());
 
-    state.read().unwrap().in_game;
-
     if state.read().unwrap().num_players() == 0 {
         player.set_admin();
         player.send_msg(&DynMessage::broadcast("You're admin! Please type START to start the game when you'd like")).expect("Message send error");
