@@ -1,4 +1,4 @@
-use server::state::msg::{Action, DynMessage};
+use server::{game::card::Card, state::msg::{Action, DynMessage}};
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use futures_util::{StreamExt, SinkExt};
@@ -21,6 +21,8 @@ async fn main() {
     let username = username.trim().to_string();
     let mut username_sent = false;
 
+    let mut cards: Vec<Card> = vec![];
+
 
     let send_messages = async {
         loop {
@@ -33,7 +35,11 @@ async fn main() {
                 let mut input = String::new();
                 reader.read_line(&mut input).await.expect("Failed to read line");
 
-                let action = Action::Message(input.trim().to_string());
+                let action = if input.trim() == "START" {
+                    Action::Start
+                } else {
+                    Action::Message(input.trim().to_string())
+                };
 
                 serde_json::to_string(&action)
             };
@@ -57,6 +63,12 @@ async fn main() {
                         };
                         match message.action {
                             Action::Message(msg) => println!("{}{}", begin_msg, msg),
+                            Action::DrawnCard(card) => {
+                                println!("You draw a {}", card);
+                                cards.push(card)
+                            },
+                            Action::TopCard(card) => println!("Top Card is a {}", card),
+                            Action::PlayCard(card) => println!("{} played {}", begin_msg, card),
                             _ => {},
                         };
                     } 

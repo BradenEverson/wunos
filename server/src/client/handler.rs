@@ -3,7 +3,6 @@ use std::sync::{Arc, RwLock};
 use futures_util::{stream::StreamExt, SinkExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
-use warp::filters::ws::Message;
 
 use crate::state::{msg::{Action, DynMessage}, player::{Player, Role}, state_man::GameState};
 
@@ -44,6 +43,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                     if state.read().unwrap().in_game || state.read().unwrap().players[&player_id].role != Role::Admin {
                                         continue;
                                     }
+                                    println!("Game start time");
 
                                     {
                                         let mut write_state = state.write().unwrap();

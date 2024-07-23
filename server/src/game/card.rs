@@ -1,4 +1,4 @@
-use std::slice::Iter;
+use std::{fmt::Display, slice::Iter};
 
 use serde::{Deserialize, Serialize};
 
@@ -18,8 +18,20 @@ pub enum Card {
     DrawFour(Color),
 }
 
-impl Card {
+impl Display for Card {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            Card::Normal(color, number) => format!("{} {}", color, number),
+            Card::DrawTwo(color) => format!("{} Plus Two", color),
+            Card::DrawFour(color) => format!("{} Plus Four", color),
+            Card::Reverse(color) => format!("{} Reverse", color),
+            Card::Skip(color) => format!("{} Skip", color),
+            Card::Wild(color) => format!("{} Wild", color)
+        })
+    }
+}
 
+impl Card {
     pub fn color(&self) -> Color {
         match self {
             Card::Normal(color, _) 
@@ -72,6 +84,18 @@ pub enum Color {
     Yellow,
     Green,
     Blue
+}
+
+impl Display for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            Color::Red => "Red",
+            Color::Blue => "Blue",
+            Color::Yellow => "Yellow",
+            Color::Green => "Green",
+            Color::None => "Wild"
+        })
+    }
 }
 
 impl Color {
