@@ -4,7 +4,7 @@ use futures_util::{stream::StreamExt, SinkExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::state::{msg::{Action, DynMessage}, player::{Player, Role}, state_man::GameState};
+use crate::{game::{card::{Card, Color}, deck::Deck}, state::{msg::{Action, DynMessage}, player::{Player, Role}, state_man::GameState}};
 
 pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameState>>) {
     let (mut sender, mut receiver) = ws.split();
@@ -33,7 +33,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                 Action::Message(txt) => {
                                     // Broadcast message from user to everyone else
                                     if let Some(name) = &player_name {
-                                        let msg = DynMessage::new_msg(name.to_string(), Action::Message(txt.to_string()));
+                                        let msg = DynMessage::new_msg(Some(name.to_string()), Action::Message(txt.to_string()));
 
                                         state.read().unwrap().broadcast_but(msg, &[player_id]).expect("Error broadcasting");
                                     }
@@ -49,6 +49,34 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                         let mut write_state = state.write().unwrap();
                                         write_state.in_game = true;
                                         write_state.turn = player_id;
+                                    }
+
+                                    let num_players = {
+                                        state.read().unwrap().num_players().clone()
+                                    };
+
+                                    let mut hands: Vec<[Card; 7]> = vec![];
+
+                                    {
+                                        let mut state = state.write().unwrap();
+                                        // Ensures we have enough copies of uno for all of our
+                                        // friends to play
+                                        state.deck = Deck::new(num_players);
+                                        for _ in 0..num_players {
+                                            // Draw 7 cards per player
+
+                                            let mut hand = [Card::Wild(Color::None); 7];
+                                            for i in 0..7 {
+                                                hand[i] = state.deck.draw();
+                                            }
+
+                                            hands.push(hand)
+                                        }
+                                    }
+
+                                    for player in state.read().unwrap().players.values() {
+                                        let new_message = DynMessage::new_msg(None, Action::Started(hands.pop().unwrap()));
+                                        player.send_msg(&new_message).expect("Failed to send message");
                                     }
 
                                     let curr_card = {
@@ -88,6 +116,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                 },
                                 Action::DrawnCard(_) => { unreachable!("User will never initialize a DrawnCard action") },
                                 Action::TopCard(_) => { unreachable!("User will never call TopCard") },
+                                Action::Started(_) => { unreachable!("User will never call Started") },
 
                             }
                         }

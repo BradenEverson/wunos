@@ -10,36 +10,39 @@ pub struct Deck {
 
 impl Default for Deck {
     fn default() -> Self {
-        Self::new()
+        Self::new(1)
     }
 }
 
 impl Deck {
-    pub fn new() -> Self {
+    pub fn new(times: usize) -> Self {
         let mut deck = vec![];
         let facing = vec![];
         let in_play = vec![];
 
-        for color in Color::iterator() {
-            deck.push(Card::Normal(*color, 0));
 
-            for i in 1..=9 {
-                deck.push(Card::Normal(*color, i));
-                deck.push(Card::Normal(*color, i));
+        for _ in 0..times {
+            for color in Color::iterator() {
+                deck.push(Card::Normal(*color, 0));
+
+                for i in 1..=9 {
+                    deck.push(Card::Normal(*color, i));
+                    deck.push(Card::Normal(*color, i));
+                }
+                deck.push(Card::DrawTwo(*color));
+                deck.push(Card::DrawTwo(*color));
+
+                deck.push(Card::Reverse(*color));
+                deck.push(Card::Reverse(*color));
+
+                deck.push(Card::Skip(*color));
+                deck.push(Card::Skip(*color));
             }
-            deck.push(Card::DrawTwo(*color));
-            deck.push(Card::DrawTwo(*color));
 
-            deck.push(Card::Reverse(*color));
-            deck.push(Card::Reverse(*color));
-
-            deck.push(Card::Skip(*color));
-            deck.push(Card::Skip(*color));
-        }
-
-        for _ in 0..4 {
-            deck.push(Card::Wild(Color::None));
-            deck.push(Card::Wild(Color::None));
+            for _ in 0..4 {
+                deck.push(Card::Wild(Color::None));
+                deck.push(Card::Wild(Color::None));
+            }
         }
 
         deck.shuffle(&mut thread_rng());

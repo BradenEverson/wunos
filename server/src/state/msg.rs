@@ -10,8 +10,8 @@ pub struct DynMessage {
 }
 
 impl DynMessage {
-    pub fn new_msg(from: String, action: Action) -> Self {
-        Self { sender: Some(from), action }
+    pub fn new_msg(from: Option<String>, action: Action) -> Self {
+        Self { sender: from, action }
     }
 
     pub fn broadcast(text: &str) -> Self {
@@ -41,6 +41,7 @@ pub enum Action {
     DrawCard,
     DrawnCard(Card),
     Start,
+    Started([Card; 7]),
     TopCard(Card),
     SetName(String)
 }
