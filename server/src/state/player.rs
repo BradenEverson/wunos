@@ -18,7 +18,7 @@ pub struct Player {
     hand: Vec<Card>
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Role {
     Admin,
     User

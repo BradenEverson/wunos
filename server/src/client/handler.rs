@@ -39,12 +39,15 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                 },
                                 Action::Start => { 
                                     // Double check they are admin, if so start game
-                                    if state.read().unwrap().in_game {
+                                    if state.read().unwrap().in_game || state.read().unwrap().players[&player_id].role != Role::Admin {
                                         continue;
                                     }
 
-                                    //state.turn = player_id;
-                                    //state.in_game = true;
+                                    {
+                                        let mut write_state = state.write().unwrap();
+                                        write_state.in_game = true;
+                                        write_state.turn = player_id;
+                                    }
 
                                     let curr_card = {
                                         let mut write_state = state.write().unwrap();
