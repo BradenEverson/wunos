@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use futures_util::{lock::Mutex, stream::StreamExt, SinkExt};
+use futures_util::{stream::StreamExt, SinkExt};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 use warp::filters::ws::Message;
@@ -13,6 +13,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
     let (tx, mut rx) = mpsc::unbounded_channel();
 
     let player_id = Uuid::new_v4();
+    let mut player_name: Option<String> = None;
 
     let mut player = Player::new(tx.clone());
 
@@ -36,6 +37,11 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                             match action {
                                 Action::Message(txt) => {
                                     // Broadcast message from user to everyone else
+                                    if let Some(name) = &player_name {
+                                        let msg = DynMessage::new_msg(name.to_string(), Action::Message(txt.to_string()));
+
+                                        state.read().unwrap().broadcast_but(msg, &[player_id]).expect("Error broadcasting");
+                                    }
                                 },
                                 Action::Start => { 
                                     // Double check they are admin, if so start game
@@ -81,6 +87,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                 Action::SetName(name) => {
                                     // Set user's name to `name`
                                     { state.write().unwrap().players.get_mut(&player_id).unwrap().set_name(&name) };
+                                    player_name = Some(name);
                                 },
                                 Action::DrawnCard(_) => { unreachable!("User will never initialize a DrawnCard action") },
                                 Action::TopCard(_) => { unreachable!("User will never call TopCard") },

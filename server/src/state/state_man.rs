@@ -34,9 +34,13 @@ impl GameState {
     }
 
     pub fn broadcast(&self, msg: DynMessage) -> Result<()> {
+        self.broadcast_but(msg, &[])    
+    }
+
+    pub fn broadcast_but(&self, msg: DynMessage, without: &[Uuid]) -> Result<()> {
         let connections = &self.players;
 
-        for (_, player) in connections.iter() {
+        for (_, player) in connections.iter().filter(|(id, _)| !without.contains(id)) {
             player.send_msg(&msg)?;
         }
 

@@ -30,7 +30,6 @@ impl Card {
                 | Card::Reverse(color) => {
                 *color
             }
-            _ => Color::None
         }
     }
 
