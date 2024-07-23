@@ -26,6 +26,7 @@ async fn main() {
 
     let send_messages = async {
         loop {
+
             let action_msg = if !username_sent {
                 let sent_action = Action::SetName(username.clone());
                 username_sent = true;
@@ -71,6 +72,7 @@ async fn main() {
                             Action::PlayCard(card) => println!("{} played {}", begin_msg, card),
                             Action::Started(starting_cards) => {
                                 cards.extend(starting_cards.iter());
+                                println!("Your hand: {:?}", cards);
                             }
                             _ => {},
                         };
