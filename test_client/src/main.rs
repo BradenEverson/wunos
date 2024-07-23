@@ -69,6 +69,9 @@ async fn main() {
                             },
                             Action::TopCard(card) => println!("Top Card is a {}", card),
                             Action::PlayCard(card) => println!("{} played {}", begin_msg, card),
+                            Action::Started(starting_cards) => {
+                                cards.extend(starting_cards.iter());
+                            }
                             _ => {},
                         };
                     } 
