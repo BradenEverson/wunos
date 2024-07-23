@@ -81,6 +81,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                     
                                 },
                                 Action::SetName(name) => {
+                                    println!("Set name: {}", name);
                                     // Set user's name to `name`
                                     state.write().unwrap().players.get_mut(&player_id).unwrap().set_name(&name);
                                     player_name = Some(name);
@@ -110,7 +111,4 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
             }
         }
     });
-
-    let entry = Message::text("Enter your name: ".to_string());
-    tx.send(entry).unwrap();
 }

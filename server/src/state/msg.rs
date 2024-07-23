@@ -5,8 +5,8 @@ use crate::game::card::Card;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DynMessage {
-    sender: Option<String>,
-    action: Action
+    pub sender: Option<String>,
+    pub action: Action
 }
 
 impl DynMessage {
