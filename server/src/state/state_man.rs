@@ -1,4 +1,5 @@
-use std::{collections::HashMap, sync::Mutex};
+
+use std::collections::HashMap;
 
 use uuid::Uuid;
 
@@ -11,8 +12,8 @@ use super::{msg::DynMessage, player::Player};
 pub struct GameState {
     pub in_game: bool,
     pub turn: Uuid,
-    pub deck: Mutex<Deck>,
-    pub players: Mutex<HashMap<Uuid, Player>>,        
+    pub deck: Deck,
+    pub players: HashMap<Uuid, Player>,        
 }
 
 impl GameState {
@@ -25,15 +26,15 @@ impl GameState {
             player.set_admin();
         }
 
-        self.players.lock().unwrap().insert(id, player.clone());
+        self.players.insert(id, player.clone());
     }
 
     pub fn num_players(&self) -> usize {
-        self.players.lock().expect("Poisoned Mutex :(").len()
+        self.players.len()
     }
 
     pub fn broadcast(&self, msg: DynMessage) -> Result<()> {
-        let connections = self.players.lock().expect("Poisoned Mutex :(");
+        let connections = &self.players;
 
         for (_, player) in connections.iter() {
             player.send_msg(&msg)?;
