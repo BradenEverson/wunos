@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use server::{game::card::Card, state::msg::{Action, DynMessage}};
+use test_client::hand::Hand;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-use futures_util::{StreamExt, SinkExt};
+use futures_util::{lock::Mutex, SinkExt, StreamExt};
 
 #[tokio::main]
 async fn main() {
@@ -21,8 +24,7 @@ async fn main() {
     let username = username.trim().to_string();
     let mut username_sent = false;
 
-    let mut cards: Vec<Card> = vec![];
-
+    let hand: Arc<Mutex<Hand>> = Arc::new(Mutex::new(Hand::default()));
 
     let send_messages = async {
         loop {
@@ -38,6 +40,23 @@ async fn main() {
 
                 let action = if input.trim() == "START" {
                     Action::Start
+                } else if input.trim().starts_with("play") {
+                    let choice = &input.trim()[4..=5];
+                    println!("{}", choice);
+                    let card_choice: Result<usize, _> = choice.trim().parse();
+
+                    if let Ok(i) = card_choice {
+                        let card = {
+                            let mut hand = hand.lock().await;
+                            hand.last_card_choice = Some(i);
+                            hand.cards[i].clone()
+                        };
+                        println!("Playing {}", card);
+                        Action::PlayCard(card)
+                    } else {
+                        continue;
+                    }
+
                 } else {
                     Action::Message(input.trim().to_string())
                 };
@@ -66,13 +85,13 @@ async fn main() {
                             Action::Message(msg) => println!("{}{}", begin_msg, msg),
                             Action::DrawnCard(card) => {
                                 println!("You draw a {}", card);
-                                cards.push(card)
+                                hand.lock().await.cards.push(card)
                             },
                             Action::TopCard(card) => println!("Top Card is a {}", card),
                             Action::PlayCard(card) => println!("{} played {}", begin_msg, card),
                             Action::Started(starting_cards) => {
-                                cards.extend(starting_cards.iter());
-                                println!("Your hand: {:?}", cards);
+                                hand.lock().await.cards.extend(starting_cards.iter());
+                                println!("Your hand: {:?}", hand.lock().await.cards);
                             }
                             _ => {},
                         };
