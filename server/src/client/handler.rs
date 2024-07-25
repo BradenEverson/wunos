@@ -99,6 +99,11 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                     if !state.read().unwrap().in_game || state.read().unwrap().turn != player_id {
                                         continue;
                                     }
+
+                                    let mut state = state.write().unwrap();
+                                    let card = state.deck.draw();
+
+                                    state.send_msg(&player_id, &DynMessage::draw(card)).expect("Draw failed");
                                 },
                                 Action::PlayCard(card) => {
                                     // Check if card can be played on top of current deck, if so do
@@ -106,7 +111,24 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                     if !state.read().unwrap().in_game || state.read().unwrap().turn != player_id {
                                         continue;
                                     }
-                                    
+                                    let mut state = state.write().unwrap();
+                                    let mut curr_turn = None;
+                                    let response = match &state.deck.play(card) {
+                                        Some(_) => {
+                                            state.turn = *state.after(&player_id).expect("Next player invalid");
+                                            curr_turn = Some(state.turn);
+                                            Action::AcceptPlayCard
+                                        },
+                                        None => Action::DenyPlayCard
+                                    };
+
+                                    let message = DynMessage::new_msg(None, response);
+                                    state.send_msg(&player_id, &message).expect("Send message fail");
+                                    let new_card = DynMessage::new_msg(player_name.clone(), Action::TopCard(state.deck.get_facing().unwrap().clone()));
+                                    state.broadcast(new_card).expect("Broadcast fail");
+                                    if let Some(new_turn) = curr_turn {
+                                        state.send_msg(&new_turn, &DynMessage::new_msg(None, Action::YourTurn)).expect("New turn failed");
+                                    }
                                 },
                                 Action::SetName(name) => {
                                     println!("Set name: {}", name);
@@ -117,6 +139,8 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                 Action::DrawnCard(_) => { unreachable!("User will never initialize a DrawnCard action") },
                                 Action::TopCard(_) => { unreachable!("User will never call TopCard") },
                                 Action::Started(_) => { unreachable!("User will never call Started") },
+                                Action::AcceptPlayCard | Action::DenyPlayCard => { unreachable!("User will never accept or deny played card") },
+                                Action::YourTurn => { unreachable!("Player will never YourTurn the server >:(") },
 
                             }
                         }

@@ -83,8 +83,8 @@ impl Deck {
         let curr = self.get_facing()?;
 
         if curr == &to_play {
-            self.in_play.push(to_play);
-            Some(&self.in_play[self.in_play.len() - 1])
+            self.facing.push(to_play);
+            self.get_facing()
         } else {
             None
         }

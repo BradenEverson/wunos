@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use server::{game::card::Card, state::msg::{Action, DynMessage}};
+use server::state::msg::{Action, DynMessage};
 use test_client::hand::Hand;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
@@ -42,7 +42,6 @@ async fn main() {
                     Action::Start
                 } else if input.trim().starts_with("play") {
                     let choice = &input.trim()[4..=5];
-                    println!("{}", choice);
                     let card_choice: Result<usize, _> = choice.trim().parse();
 
                     if let Ok(i) = card_choice {
@@ -57,7 +56,9 @@ async fn main() {
                         continue;
                     }
 
-                } else {
+                } else if input.trim().starts_with("draw") {
+                    Action::DrawCard
+                }else {
                     Action::Message(input.trim().to_string())
                 };
 
@@ -83,16 +84,35 @@ async fn main() {
                         };
                         match message.action {
                             Action::Message(msg) => println!("{}{}", begin_msg, msg),
-                            Action::DrawnCard(card) => {
-                                println!("You draw a {}", card);
-                                hand.lock().await.cards.push(card)
-                            },
+                            
                             Action::TopCard(card) => println!("Top Card is a {}", card),
                             Action::PlayCard(card) => println!("{} played {}", begin_msg, card),
+                            Action::DrawnCard(card) => {
+                                println!("You draw a {}", card);
+                                hand.lock().await.cards.push(card);
+                                println!("Your hand: {:?}", hand.lock().await.cards);
+                            },
                             Action::Started(starting_cards) => {
                                 hand.lock().await.cards.extend(starting_cards.iter());
                                 println!("Your hand: {:?}", hand.lock().await.cards);
-                            }
+                            },
+                            Action::AcceptPlayCard => {
+                                let mut hand = hand.lock().await;
+                                if let Some(choice) = hand.last_card_choice {
+                                    hand.cards.remove(choice);
+                                    hand.last_card_choice = None;
+                                } else {
+                                    panic!("Card was accepted but no log of last card chosen, something is very wrong")
+                                }
+                            },
+                            Action::DenyPlayCard => {
+                                println!("That's not a valid card to choose! Please pick again >:(");
+                                hand.lock().await.last_card_choice = None;
+                            },
+                            Action::YourTurn => {
+                                println!("It's your turn!");
+                                println!("Your hand: {:?}", hand.lock().await.cards);
+                            },
                             _ => {},
                         };
                     } 

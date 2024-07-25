@@ -37,12 +37,15 @@ impl From<DynMessage> for Message {
 pub enum Action {
     Message(String),
     PlayCard(Card),
+    AcceptPlayCard,
+    DenyPlayCard,
     Win,
     DrawCard,
     DrawnCard(Card),
     Start,
     Started([Card; 7]),
     TopCard(Card),
-    SetName(String)
+    SetName(String),
+    YourTurn,
 }
 

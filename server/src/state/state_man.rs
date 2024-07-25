@@ -21,6 +21,23 @@ impl GameState {
         Self::default()
     }
 
+    pub fn after(&self, curr: &Uuid) -> Option<&Uuid> {
+        if !self.players.contains_key(curr) {
+            return None
+        }
+        let mut key_cycle = self.players.keys().cycle();
+        loop {
+            let key_cmp = key_cycle.next().unwrap();
+            if key_cmp == curr {
+                return key_cycle.next();
+            }
+        }
+    }
+
+    pub fn send_msg(&mut self, player_id: &Uuid, msg: &DynMessage) -> Result<()> {
+        self.players[player_id].send_msg(&msg)
+    }
+
     pub fn add_player(&mut self, id: Uuid, player: &mut Player) {
         if self.num_players() == 0 {
             player.set_admin();
