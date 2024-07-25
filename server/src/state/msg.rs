@@ -47,5 +47,8 @@ pub enum Action {
     TopCard(Card),
     SetName(String),
     YourTurn,
+    Skipped,
+    DrawTwo([Card; 2]),
+    DrawFour([Card; 4])
 }
 

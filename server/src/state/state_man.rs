@@ -14,6 +14,14 @@ pub struct GameState {
     pub turn: Uuid,
     pub deck: Deck,
     pub players: HashMap<Uuid, Player>,        
+    direction: Direction
+}
+
+#[derive(Default)]
+pub enum Direction {
+    #[default]
+    Forward,
+    Backward
 }
 
 impl GameState {
@@ -21,17 +29,43 @@ impl GameState {
         Self::default()
     }
 
-    pub fn after(&self, curr: &Uuid) -> Option<&Uuid> {
+    pub fn reverse(&mut self) {
+        self.direction = match &self.direction {
+            Direction::Forward => Direction::Backward,
+            Direction::Backward => Direction::Forward
+        }
+    }
+
+    pub fn after(&self, curr: &Uuid) -> Option<Uuid> {
         if !self.players.contains_key(curr) {
             return None
         }
-        let mut key_cycle = self.players.keys().cycle();
-        loop {
-            let key_cmp = key_cycle.next().unwrap();
-            if key_cmp == curr {
-                return key_cycle.next();
+        match self.direction {
+            Direction::Forward => {
+            
+                let mut key_cycle = self.players.keys().cycle();
+
+                loop {
+                    let key_cmp = key_cycle.next().unwrap();
+                    if key_cmp == curr {
+                        return Some(*key_cycle.next().unwrap());
+                    }
+                }
             }
-        }
+            Direction::Backward => {
+                let mut key_cycle: Vec<Uuid> = self.players.clone().keys().map(|key| *key).collect();
+                key_cycle.reverse();
+
+                let mut key_cycle = key_cycle.iter().cycle();
+
+                loop {
+                    let key_cmp = key_cycle.next().unwrap();
+                    if key_cmp == curr {
+                        return Some(*key_cycle.next().unwrap());
+                    }
+                }
+            }
+        };
     }
 
     pub fn send_msg(&mut self, player_id: &Uuid, msg: &DynMessage) -> Result<()> {

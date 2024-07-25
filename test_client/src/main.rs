@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
-use server::state::msg::{Action, DynMessage};
+use server::{game::card::{Card, Color}, state::msg::{Action, DynMessage}};
 use test_client::hand::Hand;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
@@ -15,6 +15,8 @@ async fn main() {
     println!("Connected to the server");
 
     let (mut write, mut read) = ws_stream.split();
+
+    let mut write = Arc::new(Mutex::new(write));
 
     let stdin = io::stdin();
     let mut reader = BufReader::new(stdin);
@@ -45,12 +47,30 @@ async fn main() {
                     let card_choice: Result<usize, _> = choice.trim().parse();
 
                     if let Ok(i) = card_choice {
-                        let card = {
+                        let mut card = {
                             let mut hand = hand.lock().await;
                             hand.last_card_choice = Some(i);
                             hand.cards[i].clone()
                         };
                         println!("Playing {}", card);
+                        while card.color() == Color::None {
+                            println!("What color would you like?");
+                            let mut color_choice = String::new();
+                            reader.read_line(&mut color_choice).await.expect("Read color choice");
+
+                            let color = match color_choice.trim() {
+                                "red" => Color::Red,
+                                "blue" => Color::Blue,
+                                "yellow" => Color::Yellow,
+                                "green" => Color::Green,
+                                _ => Color::None
+                            };
+                            card = match card {
+                                Card::DrawFour(_) => Card::DrawFour(color),
+                                Card::Wild(_) => Card::Wild(color),
+                                _ => unreachable!("Non wild or draw four card MUST have a color")
+                            };
+                        }
                         Action::PlayCard(card)
                     } else {
                         continue;
@@ -66,7 +86,7 @@ async fn main() {
             };
             if let Ok(msg) = action_msg {
                 let msg = Message::Text(msg.trim().to_string());
-                write.send(msg).await.expect("Failed to send message");
+                write.lock().await.send(msg).await.expect("Failed to send message");
             }
         }
     };
@@ -101,6 +121,10 @@ async fn main() {
                                 if let Some(choice) = hand.last_card_choice {
                                     hand.cards.remove(choice);
                                     hand.last_card_choice = None;
+                                    if hand.cards.len() == 0 {
+                                        let win = serde_json::to_string(&Action::Win).unwrap();
+                                        write.lock().await.send(Message::Text(win)).await.expect("Send win fail");
+                                    }
                                 } else {
                                     panic!("Card was accepted but no log of last card chosen, something is very wrong")
                                 }
@@ -111,6 +135,25 @@ async fn main() {
                             },
                             Action::YourTurn => {
                                 println!("It's your turn!");
+                                println!("Your hand: {:?}", hand.lock().await.cards);
+                            },
+                            Action::Skipped => {
+                                println!("You've been skipped buddy");
+                            },
+                            Action::DrawFour(cards) => {
+                                println!("You got hit with a draw 4 :(");
+                                for card in cards {
+                                    println!("\t+ {}", card);
+                                }
+                                hand.lock().await.cards.extend(cards.iter());
+                                println!("Your hand: {:?}", hand.lock().await.cards);
+                            },
+                            Action::DrawTwo(cards) => {
+                                println!("You got hit with a draw 2 :(");
+                                for card in cards {
+                                    println!("\t+ {}", card);
+                                }
+                                hand.lock().await.cards.extend(cards.iter());
                                 println!("Your hand: {:?}", hand.lock().await.cards);
                             },
                             _ => {},

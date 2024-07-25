@@ -93,6 +93,10 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                     if !state.read().unwrap().in_game {
                                         continue;
                                     }
+
+                                    let mut state = state.write().unwrap();
+                                    state.broadcast(DynMessage::broadcast(&format!("{} has won!!!", player_name.clone().unwrap()))).unwrap();
+                                    state.in_game = false;
                                 },
                                 Action::DrawCard => {
                                     // Draw card for user and send it back as a drawn card
@@ -115,8 +119,50 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                     let mut curr_turn = None;
                                     let response = match &state.deck.play(card) {
                                         Some(_) => {
-                                            state.turn = *state.after(&player_id).expect("Next player invalid");
+                                            state.turn = state.after(&player_id).expect("Next player invalid");
                                             curr_turn = Some(state.turn);
+
+                                            match &state.deck.get_facing().unwrap() {
+                                                Card::Skip(_) => {
+                                                    state.send_msg(&curr_turn.unwrap(), &DynMessage::new_msg(None, Action::Skipped)).unwrap();
+                                                    state.turn = state.after(&curr_turn.unwrap()).expect("Next player invalid");
+                                                    curr_turn = Some(state.turn);
+                                                },
+                                                Card::DrawTwo(_) => {
+                                                    let mut cards = [Card::Wild(Color::None); 2];
+
+                                                    for i in 0..2 {
+                                                        cards[i] = state.deck.draw();
+                                                    }
+
+                                                    state.send_msg(&curr_turn.unwrap(), &DynMessage::new_msg(None, Action::DrawTwo(cards))).unwrap();
+
+                                                    state.turn = state.after(&curr_turn.unwrap()).expect("Next player invalid");
+                                                    curr_turn = Some(state.turn);
+                                                },
+                                                Card::DrawFour(_) => {
+                                                    let mut cards = [Card::Wild(Color::None); 4];
+
+                                                    for i in 0..4 {
+                                                        cards[i] = state.deck.draw();
+                                                    }
+
+                                                    state.send_msg(&curr_turn.unwrap(), &DynMessage::new_msg(None, Action::DrawFour(cards))).unwrap();
+
+                                                    state.turn = state.after(&curr_turn.unwrap()).expect("Next player invalid");
+                                                    curr_turn = Some(state.turn);
+                                                }, 
+                                                Card::Reverse(_) => {
+                                                    state.reverse();
+
+                                                    state.turn = state.after(&player_id).expect("Next player invalid");
+                                                    state.turn = state.after(&player_id).expect("Next player invalid");
+
+                                                    curr_turn = Some(state.turn);
+                                                }
+                                                _ => {}
+                                            };
+
                                             Action::AcceptPlayCard
                                         },
                                         None => Action::DenyPlayCard
@@ -141,7 +187,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
                                 Action::Started(_) => { unreachable!("User will never call Started") },
                                 Action::AcceptPlayCard | Action::DenyPlayCard => { unreachable!("User will never accept or deny played card") },
                                 Action::YourTurn => { unreachable!("Player will never YourTurn the server >:(") },
-
+                                Action::DrawFour(_) | Action::Skipped | Action::DrawTwo(_) => { unreachable!("Player will never cause a client intended message") }
                             }
                         }
                     }
