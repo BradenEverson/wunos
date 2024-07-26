@@ -9,7 +9,8 @@ use crossterm::{
 };
 use server::state::msg::{Action, DynMessage};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use std::{collections::VecDeque, fmt::format, io, sync::{Arc, RwLock}};
+use std::{collections::VecDeque, io, sync::{Arc, RwLock}};
+use tokio::sync::watch;
 
 enum Screen {
     Input,
@@ -41,9 +42,9 @@ async fn main() -> Result<(), io::Error> {
 
     let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
 
-    let (mut write, mut read) = ws_stream.split();
+    let (write, mut read) = ws_stream.split();
 
-    let mut write = Arc::new(Mutex::new(write));
+    let write = Arc::new(Mutex::new(write));
 
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -52,6 +53,35 @@ async fn main() -> Result<(), io::Error> {
     let mut terminal = Terminal::new(backend)?;
 
     let app_state = Arc::new(RwLock::new(AppState::new()));
+    let (tx, mut rx) = watch::channel(());
+
+    let app_state_clone = app_state.clone();
+    tokio::spawn(async move {
+        while let Some(msg) = read.next().await {
+            match msg {
+                Ok(Message::Text(text)) => {
+                    let deserialized: Result<DynMessage, _> = serde_json::from_str(&text);
+
+                    if let Ok(msg) = deserialized {
+                        let begin_msg = match msg.sender {
+                            Some(name) => format!("{}: ", name),
+                            None => String::new()
+                        };
+
+                        match msg.action {
+                            Action::Message(msg) => {
+                                let mut app_state = app_state_clone.write().unwrap();
+                                app_state.messages.push_back(format!("{}{}", begin_msg, msg));
+                                tx.send(()).unwrap();
+                            }, 
+                            _ => {}
+                        }
+                    }
+                }
+                _ => { break }
+            }
+        }
+    });
 
     loop {
         terminal.draw(|f| {
@@ -61,77 +91,58 @@ async fn main() -> Result<(), io::Error> {
             }
         })?;
 
-        if let Event::Key(key) = event::read()? {
-            let mut app_state = app_state.write().unwrap();
-            match app_state.screen {
-                Screen::Input => match key.code {
-                    KeyCode::Esc => {
-                        break;
-                    },
-                    KeyCode::Char(c) => app_state.input.push(c),
-                    KeyCode::Backspace => { app_state.input.pop(); },
-                    KeyCode::Enter => {
-                        // Move to the next screen on Enter
-                        app_state.screen = Screen::Action;
+        if event::poll(std::time::Duration::from_millis(100))? {
+            if let Event::Key(key) = event::read()? {
+                let mut app_state = app_state.write().unwrap();
+                match app_state.screen {
+                    Screen::Input => match key.code {
+                        KeyCode::Esc => {
+                            break;
+                        },
+                        KeyCode::Char(c) => app_state.input.push(c),
+                        KeyCode::Backspace => { app_state.input.pop(); },
+                        KeyCode::Enter => {
+                            // Move to the next screen on Enter
+                            app_state.screen = Screen::Action;
 
-                        let name = Action::SetName(app_state.input.clone());
-                        let action_msg = serde_json::to_string(&name).unwrap();
+                            let name = Action::SetName(app_state.input.clone());
+                            let action_msg = serde_json::to_string(&name).unwrap();
 
-                        let msg = Message::text(action_msg.trim());
-                        write.lock().await.send(msg).await.expect("Failed to set name");
+                            let msg = Message::text(action_msg.trim());
+                            write.lock().await.send(msg).await.expect("Failed to set name");
+                        },
+                        _ => {}
                     },
-                    _ => {}
-                },
-                Screen::Action => match key.code {
-                    KeyCode::Esc => {
-                        break;
+                    Screen::Action => match key.code {
+                        KeyCode::Esc => {
+                            break;
+                        },
+                        KeyCode::Char(c) => app_state.chat_input.push(c),
+                        KeyCode::Backspace => { app_state.chat_input.pop(); },
+                        KeyCode::Enter => {
+                            let message = format!("{}: {}", app_state.input, app_state.chat_input);
+                            app_state.messages.push_back(message.clone());
+
+                            let action = Action::Message(app_state.chat_input.clone());
+                            let action_msg = serde_json::to_string(&action).unwrap();
+                            let msg = Message::text(action_msg.trim());
+
+                            app_state.chat_input.clear();
+                            write.lock().await.send(msg).await.expect("Failed to send message");
+                        },
+                        _ => {}
                     },
-                    KeyCode::Char(c) => app_state.chat_input.push(c),
-                    KeyCode::Backspace => { app_state.chat_input.pop(); },
-                    KeyCode::Enter => {
-                        let message = format!("{}: {}", app_state.input, app_state.chat_input);
-                        app_state.messages.push_back(message);
-                        app_state.chat_input.clear();
-                    },
-                    _ => {}
-                },
+                }
             }
+        }
+
+        if rx.has_changed().unwrap() {
+            rx.borrow_and_update();
         }
     }
-
-    let receive_messages = async {
-        while let Some(msg) = read.next().await {
-            match msg {
-                Ok(Message::Text(text)) => {
-                    let deserialiezd: Result<DynMessage, _> = serde_json::from_str(&text);
-
-                    if let Ok(msg) = deserialiezd {
-                        let begin_msg = match msg.sender {
-                            Some(name) => format!("{}: ", name),
-                            None => String::new()
-                        };
-
-                        match msg.action {
-                            Action::Message(msg) => {
-                                let mut app_state = app_state.write().unwrap();
-
-                                app_state.messages.push_back(format!("{}{}", begin_msg, msg));
-                            }, 
-                            _ => {}
-                        }
-                    }
-                }
-                _ => { break }
-            }
-        }
-    };
 
     disable_raw_mode()?;
-    let execute = execute!(terminal.backend_mut(), crossterm::terminal::LeaveAlternateScreen)?;
-    tokio::select! {
-        _ = receive_messages => {},
-        _ = async { execute } => {}
-    }
+    execute!(terminal.backend_mut(), crossterm::terminal::LeaveAlternateScreen)?;
     terminal.show_cursor()?;
     Ok(())
 }
