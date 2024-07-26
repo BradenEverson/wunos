@@ -205,6 +205,8 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
         if let Some(name) = player_name {
             state.broadcast(DynMessage::broadcast(&format!("{} has left the game", name))).expect("Message send error");
         }
+
+        state.turn = state.after(&player_id).expect("Next player invalid");
     });
 
     tokio::spawn(async move {
