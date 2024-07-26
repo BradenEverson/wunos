@@ -1,3 +1,4 @@
+use futures::{lock::Mutex, SinkExt, StreamExt};
 use ratatui::{
     backend::CrosstermBackend, layout::{Constraint, Direction, Layout}, widgets::{Block, Borders, List, ListItem, Paragraph}, Terminal
 };
@@ -6,7 +7,9 @@ use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode},
 };
-use std::{collections::VecDeque, io};
+use server::state::msg::{Action, DynMessage};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
+use std::{collections::VecDeque, fmt::format, io, sync::{Arc, RwLock}};
 
 enum Screen {
     Input,
@@ -31,24 +34,35 @@ impl AppState {
     }
 }
 
-fn main() -> Result<(), io::Error> {
+#[tokio::main]
+async fn main() -> Result<(), io::Error> {
+
+    let url = "ws://127.0.0.1:8080";
+
+    let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
+
+    let (mut write, mut read) = ws_stream.split();
+
+    let mut write = Arc::new(Mutex::new(write));
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, crossterm::terminal::EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app_state = AppState::new();
+    let app_state = Arc::new(RwLock::new(AppState::new()));
 
     loop {
         terminal.draw(|f| {
-            match app_state.screen {
-                Screen::Input => draw_input_screen(f, &app_state),
-                Screen::Action => draw_action_screen(f, &app_state),
+            match app_state.read().unwrap().screen {
+                Screen::Input => draw_input_screen(f, app_state.clone()),
+                Screen::Action => draw_action_screen(f, app_state.clone()),
             }
         })?;
 
         if let Event::Key(key) = event::read()? {
+            let mut app_state = app_state.write().unwrap();
             match app_state.screen {
                 Screen::Input => match key.code {
                     KeyCode::Esc => {
@@ -59,6 +73,12 @@ fn main() -> Result<(), io::Error> {
                     KeyCode::Enter => {
                         // Move to the next screen on Enter
                         app_state.screen = Screen::Action;
+
+                        let name = Action::SetName(app_state.input.clone());
+                        let action_msg = serde_json::to_string(&name).unwrap();
+
+                        let msg = Message::text(action_msg.trim());
+                        write.lock().await.send(msg).await.expect("Failed to set name");
                     },
                     _ => {}
                 },
@@ -79,21 +99,53 @@ fn main() -> Result<(), io::Error> {
         }
     }
 
+    let receive_messages = async {
+        while let Some(msg) = read.next().await {
+            match msg {
+                Ok(Message::Text(text)) => {
+                    let deserialiezd: Result<DynMessage, _> = serde_json::from_str(&text);
+
+                    if let Ok(msg) = deserialiezd {
+                        let begin_msg = match msg.sender {
+                            Some(name) => format!("{}: ", name),
+                            None => String::new()
+                        };
+
+                        match msg.action {
+                            Action::Message(msg) => {
+                                let mut app_state = app_state.write().unwrap();
+
+                                app_state.messages.push_back(format!("{}{}", begin_msg, msg));
+                            }, 
+                            _ => {}
+                        }
+                    }
+                }
+                _ => { break }
+            }
+        }
+    };
+
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), crossterm::terminal::LeaveAlternateScreen)?;
+    let execute = execute!(terminal.backend_mut(), crossterm::terminal::LeaveAlternateScreen)?;
+    tokio::select! {
+        _ = receive_messages => {},
+        _ = async { execute } => {}
+    }
     terminal.show_cursor()?;
     Ok(())
 }
 
-fn draw_input_screen(f: &mut ratatui::Frame, app_state: &AppState) {
+fn draw_input_screen(f: &mut ratatui::Frame, app_state: Arc<RwLock<AppState>>) {
     let size = f.size();
 
+    let app_state = app_state.read().unwrap();
     let input = Paragraph::new(app_state.input.clone())
         .block(Block::default().borders(Borders::ALL).title("Enter your name:"));
     f.render_widget(input, size);
 }
 
-fn draw_action_screen(f: &mut ratatui::Frame, app_state: &AppState) {
+fn draw_action_screen(f: &mut ratatui::Frame, app_state: Arc<RwLock<AppState>>) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -106,6 +158,9 @@ fn draw_action_screen(f: &mut ratatui::Frame, app_state: &AppState) {
         )
         .split(f.size());
 
+
+    let app_state = app_state.read().unwrap();
+    
     let messages: Vec<ListItem> = app_state
         .messages
         .iter()
