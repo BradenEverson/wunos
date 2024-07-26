@@ -200,7 +200,11 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
         }
 
         // Remove connection on disconect
-        state.write().unwrap().players.remove(&player_id);
+        let mut state = state.write().unwrap();
+        state.players.remove(&player_id);
+        if let Some(name) = player_name {
+            state.broadcast(DynMessage::broadcast(&format!("{} has left the game", name))).expect("Message send error");
+        }
     });
 
     tokio::spawn(async move {

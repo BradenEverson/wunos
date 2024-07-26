@@ -8,7 +8,7 @@ use futures_util::{lock::Mutex, SinkExt, StreamExt};
 
 #[tokio::main]
 async fn main() {
-    let url = "ws://127.0.0.1:7878";
+    let url = "ws://127.0.0.1:8080";
 
     let (ws_stream, _) = connect_async(url).await.expect("Failed to connect");
 

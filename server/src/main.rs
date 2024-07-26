@@ -15,8 +15,8 @@ async fn main() -> Result<()> {
             ws.on_upgrade(move |socket| handle_connection(socket, state))
         });
 
-    println!("Listening on 127.0.0.1:7878");
-    warp::serve(routes).run(([127,0,0,1], 7878)).await;
+    println!("Listening on 127.0.0.1:8080");
+    warp::serve(routes).run(([127,0,0,1], 8080)).await;
 
 
     Ok(())
