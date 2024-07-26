@@ -15,6 +15,7 @@ use tokio::sync::watch;
 enum Screen {
     Input,
     Action,
+    InGame
 }
 
 struct AppState {
@@ -88,6 +89,7 @@ async fn main() -> Result<(), io::Error> {
             match app_state.read().unwrap().screen {
                 Screen::Input => draw_input_screen(f, app_state.clone()),
                 Screen::Action => draw_action_screen(f, app_state.clone()),
+                _ => todo!()
             }
         })?;
 
@@ -132,6 +134,7 @@ async fn main() -> Result<(), io::Error> {
                         },
                         _ => {}
                     },
+                    _ => todo!()
                 }
             }
         }
