@@ -1,159 +1,124 @@
 use ratatui::{
-    backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
-    style::{Color, Modifier, Style},
-    text::{Span, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
-    Terminal,
+    backend::CrosstermBackend, layout::{Constraint, Direction, Layout}, widgets::{Block, Borders, List, ListItem, Paragraph}, Terminal
 };
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{self, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{disable_raw_mode, enable_raw_mode},
 };
-use std::io;
+use std::{collections::VecDeque, io};
 
-struct Player {
-    name: String,
-    card_count: usize,
+enum Screen {
+    Input,
+    Action,
 }
 
-struct UnoGame {
-    players: Vec<Player>,
-    current_card: String,
-    your_hand: Vec<String>,
-    turn: usize,
+struct AppState {
+    screen: Screen,
+    input: String,
+    chat_input: String,
+    messages: VecDeque<String>,
+}
+
+impl AppState {
+    fn new() -> Self {
+        AppState {
+            screen: Screen::Input,
+            input: String::new(),
+            chat_input: String::new(),
+            messages: VecDeque::new(),
+        }
+    }
 }
 
 fn main() -> Result<(), io::Error> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    execute!(stdout, crossterm::terminal::EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let game = UnoGame {
-        players: vec![
-            Player { name: String::from("Alice"), card_count: 5 },
-            Player { name: String::from("Bob"), card_count: 3 },
-            Player { name: String::from("Charlie"), card_count: 7 },
-        ],
-        current_card: String::from("Red 5"),
-        your_hand: vec![String::from("Blue 7"), String::from("Green Skip"), String::from("Yellow 2")],
-        turn: 0,
-    };
-
-    let mut selected_card = 0;
+    let mut app_state = AppState::new();
 
     loop {
         terminal.draw(|f| {
-            let size = f.size();
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .margin(1)
-                .constraints(
-                    [
-                        Constraint::Percentage(20),
-                        Constraint::Percentage(20),
-                        Constraint::Percentage(60),
-                    ]
-                    .as_ref(),
-                )
-                .split(size);
-
-            let players: Vec<ListItem> = game
-                .players
-                .iter()
-                .enumerate()
-                .map(|(i, p)| {
-                    let player_style = if i == game.turn {
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(Color::White)
-                    };
-                    ListItem::new(Text::styled(format!("{}: {} cards", p.name, p.card_count), player_style))
-                })
-                .collect();
-
-            let players_list = List::new(players)
-                .block(Block::default().borders(Borders::ALL).title("Players"));
-
-            f.render_widget(players_list, chunks[0]);
-
-            let current_card = Paragraph::new(Text::styled(format!("Current Card: {}", game.current_card), get_card_style(&game.current_card)))
-                .block(Block::default().borders(Borders::ALL).title("Current Card"));
-
-            f.render_widget(current_card, chunks[1]);
-
-            let your_hand: Vec<ListItem> = game
-                .your_hand
-                .iter()
-                .enumerate()
-                .map(|(i, card)| {
-                    let card_style = if i == selected_card {
-                        get_card_style(card).add_modifier(Modifier::REVERSED)
-                    } else {
-                        get_card_style(card)
-                    };
-                    ListItem::new(Text::styled(card, card_style))
-                })
-                .collect();
-
-            let hand_list = List::new(your_hand)
-                .block(Block::default().borders(Borders::ALL).title("Your Hand"));
-
-            f.render_widget(hand_list, chunks[2]);
+            match app_state.screen {
+                Screen::Input => draw_input_screen(f, &app_state),
+                Screen::Action => draw_action_screen(f, &app_state),
+            }
         })?;
 
         if let Event::Key(key) = event::read()? {
-            match key.code {
-                KeyCode::Char('q') => break,
-                KeyCode::Down | KeyCode::Char('j') => {
-                    if selected_card < game.your_hand.len() - 1 {
-                        selected_card += 1;
-                    }
+            match app_state.screen {
+                Screen::Input => match key.code {
+                    KeyCode::Esc => {
+                        break;
+                    },
+                    KeyCode::Char(c) => app_state.input.push(c),
+                    KeyCode::Backspace => { app_state.input.pop(); },
+                    KeyCode::Enter => {
+                        // Move to the next screen on Enter
+                        app_state.screen = Screen::Action;
+                    },
+                    _ => {}
                 },
-                KeyCode::Up | KeyCode::Char('k') => {
-                    if selected_card > 0 {
-                        selected_card -= 1;
-                    }
+                Screen::Action => match key.code {
+                    KeyCode::Esc => {
+                        break;
+                    },
+                    KeyCode::Char(c) => app_state.chat_input.push(c),
+                    KeyCode::Backspace => { app_state.chat_input.pop(); },
+                    KeyCode::Enter => {
+                        let message = format!("{}: {}", app_state.input, app_state.chat_input);
+                        app_state.messages.push_back(message);
+                        app_state.chat_input.clear();
+                    },
+                    _ => {}
                 },
-                KeyCode::Enter => {
-                    if game.turn == 0 {
-                        // Send a card over for validation
-                    }
-                },
-                KeyCode::Char('d') => {
-                    if game.turn == 0 {
-                        // Draw a card
-                    }
-                },
-                _ => {}
             }
         }
     }
 
     disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
+    execute!(terminal.backend_mut(), crossterm::terminal::LeaveAlternateScreen)?;
     terminal.show_cursor()?;
-
     Ok(())
 }
 
-fn get_card_style(card: &str) -> Style {
-    if card.contains("Red") {
-        Style::default().fg(Color::Red)
-    } else if card.contains("Blue") {
-        Style::default().fg(Color::Blue)
-    } else if card.contains("Green") {
-        Style::default().fg(Color::Green)
-    } else if card.contains("Yellow") {
-        Style::default().fg(Color::Yellow)
-    } else {
-        Style::default().fg(Color::White)
-    }
+fn draw_input_screen(f: &mut ratatui::Frame, app_state: &AppState) {
+    let size = f.size();
+
+    let input = Paragraph::new(app_state.input.clone())
+        .block(Block::default().borders(Borders::ALL).title("Enter your name:"));
+    f.render_widget(input, size);
+}
+
+fn draw_action_screen(f: &mut ratatui::Frame, app_state: &AppState) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints(
+            [
+                Constraint::Min(5),
+                Constraint::Length(3),
+            ]
+            .as_ref(),
+        )
+        .split(f.size());
+
+    let messages: Vec<ListItem> = app_state
+        .messages
+        .iter()
+        .map(|m| ListItem::new(m.as_str()))
+        .collect();
+
+    let messages_widget = List::new(messages)
+        .block(Block::default().borders(Borders::ALL).title("Chat"));
+
+    f.render_widget(messages_widget, chunks[0]);
+
+    let input = Paragraph::new(app_state.chat_input.clone())
+        .block(Block::default().borders(Borders::ALL).title("Message"));
+
+    f.render_widget(input, chunks[1]);
 }
