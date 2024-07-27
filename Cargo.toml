@@ -3,6 +3,6 @@
 members = [
     "client",
     "server"
-, "test_client", "test_game"]
+    , "test_client"]
 
 resolver = "2"
