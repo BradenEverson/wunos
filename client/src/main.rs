@@ -14,6 +14,7 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 use std::{collections::VecDeque, io, sync::{Arc, RwLock}};
 use tokio::sync::watch;
 
+#[derive(Copy, Clone)]
 enum Screen {
     Input,
     Action,
@@ -114,26 +115,32 @@ async fn main() -> Result<(), io::Error> {
                             Action::PlayCard(card) => {
                                 let mut app_state = app_state_clone.write().unwrap();
                                 app_state.messages.push_back(format!("{} played {}", begin_msg, card));
+                                tx.send(()).unwrap();
                             },
                             Action::DenyPlayCard => {
                                 let mut app_state = app_state_clone.write().unwrap();
                                 app_state.hand.last_choice = None;
+                                tx.send(()).unwrap();
                             },
                             Action::YourTurn => {
                                  let mut app_state = app_state_clone.write().unwrap();
                                  app_state.messages.push_back(format!("It's your turn!"));
+                                tx.send(()).unwrap();
                             },
                             Action::Skipped => {
                                  let mut app_state = app_state_clone.write().unwrap();
                                  app_state.messages.push_back(format!("YOU GOT SKIPPED BOY"));
+                                 tx.send(()).unwrap();
                             },
                             Action::DrawFour(cards) => {
                                 let mut app_state = app_state_clone.write().unwrap();
-                                app_state.hand.cards.extend(cards.iter())
+                                app_state.hand.cards.extend(cards.iter());
+                                tx.send(()).unwrap();
                             },
                             Action::DrawTwo(cards) => {
                                 let mut app_state = app_state_clone.write().unwrap();
-                                app_state.hand.cards.extend(cards.iter())
+                                app_state.hand.cards.extend(cards.iter());
+                                tx.send(()).unwrap();
                             },
                             _ => {}
                         }
@@ -155,16 +162,28 @@ async fn main() -> Result<(), io::Error> {
 
         if event::poll(std::time::Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                let mut app_state = app_state.write().unwrap();
-                match app_state.screen {
+                let app_state = app_state.clone();
+
+                let screen = {
+                    app_state.read().unwrap().screen
+                };
+
+                match screen {
                     Screen::Input => match key.code {
                         KeyCode::Esc => {
                             break;
                         },
-                        KeyCode::Char(c) => app_state.input.push(c),
-                        KeyCode::Backspace => { app_state.input.pop(); },
+                        KeyCode::Char(c) => {
+                            let mut app_state = app_state.write().unwrap();
+                            app_state.input.push(c)
+                        },
+                        KeyCode::Backspace => { 
+                            let mut app_state = app_state.write().unwrap();
+                            app_state.input.pop(); 
+                        },
                         KeyCode::Enter => {
                             // Move to the next screen on Enter
+                            let mut app_state = app_state.write().unwrap();
                             app_state.screen = Screen::Action;
 
                             let name = Action::SetName(app_state.input.clone());
@@ -179,9 +198,16 @@ async fn main() -> Result<(), io::Error> {
                         KeyCode::Esc => {
                             break;
                         },
-                        KeyCode::Char(c) => app_state.chat_input.push(c),
-                        KeyCode::Backspace => { app_state.chat_input.pop(); },
+                        KeyCode::Char(c) => {
+                            let mut app_state = app_state.write().unwrap();
+                            app_state.chat_input.push(c)
+                        },
+                        KeyCode::Backspace => { 
+                            let mut app_state = app_state.write().unwrap();
+                            app_state.chat_input.pop(); 
+                        },
                         KeyCode::Enter => {
+                            let mut app_state = app_state.write().unwrap();
                             let msg = if &app_state.chat_input.trim() == &"START" {
                                 let string = serde_json::to_string(&Action::Start).unwrap();
                                 Message::text(string)
@@ -204,12 +230,14 @@ async fn main() -> Result<(), io::Error> {
                         let action: Option<Action> = match key.code {
                             KeyCode::Esc => break,
                             KeyCode::Left => {
+                                let mut app_state = app_state.write().unwrap();
                                 if app_state.selected > 0 {
                                     app_state.selected -= 1;
                                 }
                                 None
                             },
                             KeyCode::Right => {
+                                let mut app_state = app_state.write().unwrap();
                                 if app_state.selected < app_state.hand.cards.len() - 1 {
                                     app_state.selected += 1;
                                 }
@@ -221,6 +249,7 @@ async fn main() -> Result<(), io::Error> {
                             },
                             KeyCode::Enter => {
                                 // Play selected
+                                let mut app_state = app_state.write().unwrap();
                                 let chosen_card = app_state.hand.cards[app_state.selected];
                                 app_state.hand.last_choice = Some(app_state.selected);
                                 Some(Action::PlayCard(chosen_card))
