@@ -9,7 +9,7 @@ use crossterm::{
 use server::{game::card::Card, state::msg::{Action, DynMessage}};
 use server::game::card::Color as CardColor;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
-use std::{collections::VecDeque, io, sync::{Arc, RwLock}};
+use std::{collections::VecDeque, fmt::write, io, sync::{Arc, RwLock}};
 
 #[derive(Copy, Clone)]
 enum Screen {
@@ -26,7 +26,8 @@ struct AppState {
     pub hand: Hand,
     pub top_card: Card,
     pub selected: usize,
-    pub wild_color: CardColor
+    pub wild_color: CardColor,
+    pub won: bool
 }
 
 impl AppState {
@@ -39,7 +40,8 @@ impl AppState {
             hand: Hand::default(),
             top_card: Card::Wild(CardColor::Red),
             selected: 0,
-            wild_color: CardColor::None
+            wild_color: CardColor::None,
+            won: false
         }
     }
 }
@@ -118,6 +120,11 @@ async fn main() -> Result<(), io::Error> {
                                     if let Some(choice) = app_state.hand.last_choice {
                                         app_state.hand.cards.remove(choice);
                                         app_state.hand.last_choice = None;
+
+                                        if app_state.hand.cards.len() == 0 {
+                                            println!("Win");
+                                            app_state.won = true;
+                                        }
                                     }
                                 }
                             },
@@ -169,6 +176,17 @@ async fn main() -> Result<(), io::Error> {
                                     app_state.hand.cards.extend(cards.iter());
                                 }
                             },
+                            Action::Win => {
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
+
+                                    app_state.won = false;
+                                    app_state.hand.cards = vec![];
+
+                                    app_state.screen = Screen::Action;
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -195,9 +213,25 @@ async fn main() -> Result<(), io::Error> {
             if let Event::Key(key) = event::read()? {
                 let app_state = app_state.clone();
 
+                {
+                    let mut app_state = app_state.write().unwrap();
+                    app_state.selected = app_state.selected.clamp(0, app_state.hand.cards.len());
+                }
+
                 let screen = {
                     app_state.read().unwrap().screen
                 };
+
+                let won = { 
+                    app_state.read().unwrap().won
+                };
+
+                if won {
+                    {
+                        let msg = Message::text(serde_json::to_string(&Action::Win).unwrap());
+                        write.lock().await.send(msg).await.expect("Failed to send win");
+                    }
+                }
 
                 match screen {
                     Screen::Input => match key.code {
@@ -310,8 +344,8 @@ async fn main() -> Result<(), io::Error> {
                             KeyCode::Char('b') | KeyCode::Char('3') => {
                                 let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();
-            
-                                app_state.wild_color = CardColor::Green;
+
+                                app_state.wild_color = CardColor::Blue;
 
                                 None
                             },
@@ -319,10 +353,10 @@ async fn main() -> Result<(), io::Error> {
                                 let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();
             
-                                app_state.wild_color = CardColor::Blue;
+                                app_state.wild_color = CardColor::Green;
 
                                 None
-                            }
+                            },
                             KeyCode::Enter => {
                                 let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();

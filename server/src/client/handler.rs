@@ -96,6 +96,7 @@ pub async fn handle_connection(ws: warp::ws::WebSocket, state: Arc<RwLock<GameSt
 
                                     let mut state = state.write().unwrap();
                                     state.broadcast(DynMessage::broadcast(&format!("{} has won!!!", player_name.clone().unwrap()))).unwrap();
+                                    state.broadcast(DynMessage::new_msg(None, Action::Win)).unwrap();
                                     state.in_game = false;
                                 },
                                 Action::DrawCard => {
