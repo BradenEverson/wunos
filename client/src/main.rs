@@ -88,10 +88,53 @@ async fn main() -> Result<(), io::Error> {
                                 let mut app_state = app_state_clone.write().unwrap();
                                 app_state.hand.cards.extend(starting_cards.iter());
                                 app_state.screen = Screen::InGame;
+                            },
+                            Action::TopCard(card) => {
+                                let mut app_state = app_state_clone.write().unwrap();
+                                app_state.top_card = card;
 
                                 tx.send(()).unwrap();
+                            },
+                            Action::DrawnCard(card) => {
+                                let mut app_state = app_state_clone.write().unwrap();
+                                app_state.hand.cards.push(card);
 
-                            }
+                                tx.send(()).unwrap();
+                            },
+                            Action::AcceptPlayCard => {
+                                let mut app_state = app_state_clone.write().unwrap();
+                                if let Some(choice) = app_state.hand.last_choice {
+                                    app_state.hand.cards.remove(choice);
+                                    app_state.hand.last_choice = None;
+
+                                    // TODO: Win the game if hand is empty
+                                }
+                                tx.send(()).unwrap();
+                            },
+                            Action::PlayCard(card) => {
+                                let mut app_state = app_state_clone.write().unwrap();
+                                app_state.messages.push_back(format!("{} played {}", begin_msg, card));
+                            },
+                            Action::DenyPlayCard => {
+                                let mut app_state = app_state_clone.write().unwrap();
+                                app_state.hand.last_choice = None;
+                            },
+                            Action::YourTurn => {
+                                 let mut app_state = app_state_clone.write().unwrap();
+                                 app_state.messages.push_back(format!("It's your turn!"));
+                            },
+                            Action::Skipped => {
+                                 let mut app_state = app_state_clone.write().unwrap();
+                                 app_state.messages.push_back(format!("YOU GOT SKIPPED BOY"));
+                            },
+                            Action::DrawFour(cards) => {
+                                let mut app_state = app_state_clone.write().unwrap();
+                                app_state.hand.cards.extend(cards.iter())
+                            },
+                            Action::DrawTwo(cards) => {
+                                let mut app_state = app_state_clone.write().unwrap();
+                                app_state.hand.cards.extend(cards.iter())
+                            },
                             _ => {}
                         }
                     }
@@ -157,25 +200,42 @@ async fn main() -> Result<(), io::Error> {
                         },
                         _ => {}
                     },
-                    Screen::InGame => match key.code {
-                        KeyCode::Esc => break,
-                        KeyCode::Left => {
-                            if app_state.selected > 0 {
-                                app_state.selected -= 1;
+                    Screen::InGame => { 
+                        let action: Option<Action> = match key.code {
+                            KeyCode::Esc => break,
+                            KeyCode::Left => {
+                                if app_state.selected > 0 {
+                                    app_state.selected -= 1;
+                                }
+                                None
+                            },
+                            KeyCode::Right => {
+                                if app_state.selected < app_state.hand.cards.len() - 1 {
+                                    app_state.selected += 1;
+                                }
+                                None
+                            },
+                            KeyCode::Char('d') => {
+                                // Draw a card
+                                Some(Action::DrawCard)
+                            },
+                            KeyCode::Enter => {
+                                // Play selected
+                                let chosen_card = app_state.hand.cards[app_state.selected];
+                                app_state.hand.last_choice = Some(app_state.selected);
+                                Some(Action::PlayCard(chosen_card))
                             }
-                        },
-                        KeyCode::Right => {
-                            if app_state.selected < app_state.hand.cards.len() - 1 {
-                                app_state.selected += 1;
+                            _ => None
+                        };
+
+                        if let Some(msg) = action {
+                            let serialized = serde_json::to_string(&msg);
+                            if let Ok(send_ser) = serialized {
+                                let message = Message::Text(send_ser.trim().to_string());
+                                write.lock().await.send(message).await.expect("Failed to send message");
                             }
-                        },
-                        KeyCode::Char('d') => {
-                            // Draw a card
-                        },
-                        KeyCode::Enter => {
-                            // Play selected
                         }
-                        _ => {}
+
                     }
                 }
             }
