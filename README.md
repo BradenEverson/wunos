@@ -7,9 +7,9 @@ Wunos is a Rust-based implementation of the card game Uno, designed to be played
 ### Architecture 
 Wunos is a WebSocket-based Uno game server implemented in Rust. The project is structured into multiple sub-projects:
 
-1. **Server**: Manages game state and client communication.
-2. **Client**: Connects to the server to participate in the game.
-3. **Test Client**: Used for testing the server functionality.
+1. **Server**: Manages game state and client communication
+2. **Client**: Connects to the server to participate in the game
+3. **Test Client**: Used for testing the server functionality during early development :)
 
 ### Tokio Runtime 🗼
 The project leverages the Tokio runtime, an asynchronous runtime for the Rust programming language. Tokio enables efficient handling of multiple connections by using asynchronous I/O, allowing the server to manage numerous WebSocket connections concurrently without blocking.
