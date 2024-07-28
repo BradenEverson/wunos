@@ -12,7 +12,6 @@ use server::{game::card::Card, state::msg::{Action, DynMessage}};
 use server::game::card::Color as CardColor;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use std::{collections::VecDeque, io, sync::{Arc, RwLock}};
-use tokio::sync::watch;
 
 #[derive(Copy, Clone)]
 enum Screen {
@@ -64,7 +63,6 @@ async fn main() -> Result<(), io::Error> {
     let mut terminal = Terminal::new(backend)?;
 
     let app_state = Arc::new(RwLock::new(AppState::new()));
-    let (tx, mut rx) = watch::channel(());
 
     let app_state_clone = app_state.clone();
     tokio::spawn(async move {
@@ -81,66 +79,95 @@ async fn main() -> Result<(), io::Error> {
 
                         match msg.action {
                             Action::Message(msg) => {
-                                let mut app_state = app_state_clone.write().unwrap();
-                                app_state.messages.push_back(format!("{}{}", begin_msg, msg));
-                                tx.send(()).unwrap();
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
+
+                                    app_state.messages.push_back(format!("{}{}", begin_msg, msg));
+                                }
                             }, 
                             Action::Started(starting_cards) => {
-                                let mut app_state = app_state_clone.write().unwrap();
-                                app_state.hand.cards.extend(starting_cards.iter());
-                                app_state.screen = Screen::InGame;
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
+
+                                    app_state.hand.cards.extend(starting_cards.iter());
+                                    app_state.screen = Screen::InGame;
+                                }
                             },
                             Action::TopCard(card) => {
-                                let mut app_state = app_state_clone.write().unwrap();
-                                app_state.top_card = card;
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
 
-                                tx.send(()).unwrap();
+                                    app_state.top_card = card;
+                                }
                             },
                             Action::DrawnCard(card) => {
-                                let mut app_state = app_state_clone.write().unwrap();
-                                app_state.hand.cards.push(card);
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
 
-                                tx.send(()).unwrap();
+                                    app_state.hand.cards.push(card);
+                                }
                             },
                             Action::AcceptPlayCard => {
-                                let mut app_state = app_state_clone.write().unwrap();
-                                if let Some(choice) = app_state.hand.last_choice {
-                                    app_state.hand.cards.remove(choice);
-                                    app_state.hand.last_choice = None;
-
-                                    // TODO: Win the game if hand is empty
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
+                                    if let Some(choice) = app_state.hand.last_choice {
+                                        app_state.hand.cards.remove(choice);
+                                        app_state.hand.last_choice = None;
+                                    }
                                 }
-                                tx.send(()).unwrap();
                             },
                             Action::PlayCard(card) => {
-                                let mut app_state = app_state_clone.write().unwrap();
-                                app_state.messages.push_back(format!("{} played {}", begin_msg, card));
-                                tx.send(()).unwrap();
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
+
+                                    app_state.messages.push_back(format!("{} played {}", begin_msg, card));
+                                }
                             },
                             Action::DenyPlayCard => {
-                                let mut app_state = app_state_clone.write().unwrap();
-                                app_state.hand.last_choice = None;
-                                tx.send(()).unwrap();
+                                {
+                                    //let app_state = app_state_clone.clone();
+                                    //let mut app_state = app_state.write().unwrap();
+
+                                    //app_state.hand.last_choice = None;
+                                }
                             },
                             Action::YourTurn => {
-                                 let mut app_state = app_state_clone.write().unwrap();
-                                 app_state.messages.push_back(format!("It's your turn!"));
-                                tx.send(()).unwrap();
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
+
+                                    app_state.messages.push_back(format!("It's your turn!"));
+                                }
                             },
                             Action::Skipped => {
-                                 let mut app_state = app_state_clone.write().unwrap();
-                                 app_state.messages.push_back(format!("YOU GOT SKIPPED BOY"));
-                                 tx.send(()).unwrap();
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
+
+                                    app_state.messages.push_back(format!("YOU GOT SKIPPED BOY"));
+                                }
                             },
                             Action::DrawFour(cards) => {
-                                let mut app_state = app_state_clone.write().unwrap();
-                                app_state.hand.cards.extend(cards.iter());
-                                tx.send(()).unwrap();
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
+
+                                    app_state.hand.cards.extend(cards.iter());
+                                }
                             },
                             Action::DrawTwo(cards) => {
-                                let mut app_state = app_state_clone.write().unwrap();
-                                app_state.hand.cards.extend(cards.iter());
-                                tx.send(()).unwrap();
+                                {
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
+
+                                    app_state.hand.cards.extend(cards.iter());
+                                }
                             },
                             _ => {}
                         }
@@ -153,7 +180,11 @@ async fn main() -> Result<(), io::Error> {
 
     loop {
         terminal.draw(|f| {
-            match app_state.read().unwrap().screen {
+            let screen = {
+                app_state.read().unwrap().screen
+            };
+
+            match screen {
                 Screen::Input => draw_input_screen(f, app_state.clone()),
                 Screen::Action => draw_action_screen(f, app_state.clone()),
                 Screen::InGame => draw_game_screen(f, app_state.clone())
@@ -174,15 +205,20 @@ async fn main() -> Result<(), io::Error> {
                             break;
                         },
                         KeyCode::Char(c) => {
-                            let mut app_state = app_state.write().unwrap();
-                            app_state.input.push(c)
+                            {
+                                let app_state = app_state.clone();
+                                let mut app_state = app_state.write().unwrap();
+                                app_state.input.push(c)
+                            }
                         },
                         KeyCode::Backspace => { 
+                            let app_state = app_state.clone();
                             let mut app_state = app_state.write().unwrap();
                             app_state.input.pop(); 
                         },
                         KeyCode::Enter => {
                             // Move to the next screen on Enter
+                            let app_state = app_state.clone();
                             let mut app_state = app_state.write().unwrap();
                             app_state.screen = Screen::Action;
 
@@ -199,14 +235,17 @@ async fn main() -> Result<(), io::Error> {
                             break;
                         },
                         KeyCode::Char(c) => {
+                            let app_state = app_state.clone();
                             let mut app_state = app_state.write().unwrap();
                             app_state.chat_input.push(c)
                         },
                         KeyCode::Backspace => { 
+                            let app_state = app_state.clone();
                             let mut app_state = app_state.write().unwrap();
                             app_state.chat_input.pop(); 
                         },
                         KeyCode::Enter => {
+                            let app_state = app_state.clone();
                             let mut app_state = app_state.write().unwrap();
                             let msg = if &app_state.chat_input.trim() == &"START" {
                                 let string = serde_json::to_string(&Action::Start).unwrap();
@@ -230,6 +269,7 @@ async fn main() -> Result<(), io::Error> {
                         let action: Option<Action> = match key.code {
                             KeyCode::Esc => break,
                             KeyCode::Left => {
+                                let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();
                                 if app_state.selected > 0 {
                                     app_state.selected -= 1;
@@ -237,6 +277,7 @@ async fn main() -> Result<(), io::Error> {
                                 None
                             },
                             KeyCode::Right => {
+                                let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();
                                 if app_state.selected < app_state.hand.cards.len() - 1 {
                                     app_state.selected += 1;
@@ -249,6 +290,7 @@ async fn main() -> Result<(), io::Error> {
                             },
                             KeyCode::Enter => {
                                 // Play selected
+                                let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();
                                 let chosen_card = app_state.hand.cards[app_state.selected];
                                 app_state.hand.last_choice = Some(app_state.selected);
@@ -270,9 +312,9 @@ async fn main() -> Result<(), io::Error> {
             }
         }
 
-        if rx.has_changed().unwrap() {
+        /*if rx.has_changed().unwrap() {
             rx.borrow_and_update();
-        }
+        }*/
     }
 
     disable_raw_mode()?;
