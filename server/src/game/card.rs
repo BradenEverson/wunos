@@ -23,10 +23,22 @@ impl Display for Card {
         write!(f, "{}", match self {
             Card::Normal(color, number) => format!("{} {}", color, number),
             Card::DrawTwo(color) => format!("{} Plus Two", color),
-            Card::DrawFour(color) => format!("{} Plus Four", color),
+            Card::DrawFour(color) => {
+                if color == &Color::None {
+                    format!("Plus Four")
+                } else {
+                    format!("{} Plus Four", color)
+                }
+            },
             Card::Reverse(color) => format!("{} Reverse", color),
             Card::Skip(color) => format!("{} Skip", color),
-            Card::Wild(color) => format!("{} Wild", color)
+            Card::Wild(color) => {
+                if color == &Color::None {
+                    format!("Wild")
+                } else {
+                    format!("{} Wild", color)
+                }
+            }
         })
     }
 }

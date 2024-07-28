@@ -1,12 +1,10 @@
 use client::hand::Hand;
 use futures::{lock::Mutex, SinkExt, StreamExt};
 use ratatui::{
-    backend::CrosstermBackend, layout::{Constraint, Direction, Layout, Rect}, style::{Style, Color}, widgets::{Block, Borders, List, ListItem, Paragraph}, Terminal
+    backend::CrosstermBackend, layout::{Constraint, Direction, Layout, Rect}, style::{Color, Style, Stylize}, widgets::{Block, Borders, List, ListItem, Paragraph}, Terminal
 };
 use crossterm::{
-    event::{self, Event, KeyCode},
-    execute,
-    terminal::{disable_raw_mode, enable_raw_mode},
+    event::{self, Event, KeyCode}, execute, terminal::{disable_raw_mode, enable_raw_mode}
 };
 use server::{game::card::Card, state::msg::{Action, DynMessage}};
 use server::game::card::Color as CardColor;
@@ -131,10 +129,10 @@ async fn main() -> Result<(), io::Error> {
                             },
                             Action::DenyPlayCard => {
                                 {
-                                    //let app_state = app_state_clone.clone();
-                                    //let mut app_state = app_state.write().unwrap();
+                                    let app_state = app_state_clone.clone();
+                                    let mut app_state = app_state.write().unwrap();
 
-                                    //app_state.hand.last_choice = None;
+                                    app_state.hand.last_choice = None;
                                 }
                             },
                             Action::YourTurn => {
@@ -268,28 +266,30 @@ async fn main() -> Result<(), io::Error> {
                     Screen::InGame => { 
                         let action: Option<Action> = match key.code {
                             KeyCode::Esc => break,
-                            KeyCode::Left => {
+                            KeyCode::Left | KeyCode::Char('h') => {
                                 let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();
-                                if app_state.selected > 0 {
+                                if app_state.selected == 0 {
+                                    app_state.selected = app_state.hand.cards.len() - 1;
+                                } else {
                                     app_state.selected -= 1;
                                 }
                                 None
                             },
-                            KeyCode::Right => {
+                            KeyCode::Right | KeyCode::Char('l') => {
                                 let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();
-                                if app_state.selected < app_state.hand.cards.len() - 1 {
+                                if app_state.selected == app_state.hand.cards.len() - 1 {
+                                    app_state.selected = 0;
+                                } else {
                                     app_state.selected += 1;
                                 }
                                 None
                             },
-                            KeyCode::Char('d') => {
-                                // Draw a card
+                            KeyCode::Char('d') | KeyCode::Char(' ') => {
                                 Some(Action::DrawCard)
                             },
                             KeyCode::Enter => {
-                                // Play selected
                                 let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();
                                 let chosen_card = app_state.hand.cards[app_state.selected];
@@ -311,10 +311,6 @@ async fn main() -> Result<(), io::Error> {
                 }
             }
         }
-
-        /*if rx.has_changed().unwrap() {
-            rx.borrow_and_update();
-        }*/
     }
 
     disable_raw_mode()?;
@@ -378,7 +374,8 @@ fn draw_game_screen(f: &mut ratatui::Frame, app_state: Arc<RwLock<AppState>>) {
         .margin(1)
         .constraints(
             [
-                Constraint::Length(3),
+                Constraint::Max(3),
+                Constraint::Length(6),
                 Constraint::Min(0),
             ]
             .as_ref(),
@@ -387,17 +384,38 @@ fn draw_game_screen(f: &mut ratatui::Frame, app_state: Arc<RwLock<AppState>>) {
 
     
     let app_state = app_state.read().unwrap();
+     
+    let message = app_state
+        .messages
+        .iter()
+        .map(|m| ListItem::new(m.as_str()))
+        .last()
+        .unwrap_or(ListItem::new(""));
+
+    let messages_widget = List::new(vec![message])
+        .block(Block::default().borders(Borders::ALL).fg(Color::DarkGray));
+
+    f.render_widget(messages_widget, chunks[0]);
 
     let top = app_state.top_card;
     let top_card_text = top.to_string();
     let top_card_paragraph = Paragraph::new(top_card_text)
-        .style(Style::default().fg(color_to_tui_color(top.color())))
-        .block(Block::default().title("Top Card").borders(Borders::ALL));
-    f.render_widget(top_card_paragraph, chunks[0]);
+        .style(Style::default()
+            .fg(Color::White)
+            .bg(color_to_tui_color(top.color())))
+        .block(Block::default().title("Top Card")
+            .borders(Borders::ALL));
+
+    f.render_widget(top_card_paragraph, chunks[1]);
 
     let cards = &app_state.hand.cards;
 
-    let card_width = size.width / cards.len() as u16;
+    let card_width = if cards.len() != 0 {
+        size.width / cards.len() as u16
+    } else {
+        size.width
+    };
+
     let card_height = card_width * 2;
     let mut constraints: Vec<Constraint> = vec![];
     for _ in 0..cards.len() {
@@ -406,7 +424,7 @@ fn draw_game_screen(f: &mut ratatui::Frame, app_state: Arc<RwLock<AppState>>) {
     let card_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(constraints.clone())
-        .split(Rect::new(chunks[1].x, chunks[1].y, size.width, card_height));
+        .split(Rect::new(chunks[2].x, chunks[2].y, size.width, card_height));
 
     for (i, &card) in cards.iter().enumerate() {
         let style = if i == app_state.selected {
