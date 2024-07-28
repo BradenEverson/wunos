@@ -25,7 +25,8 @@ struct AppState {
     pub messages: VecDeque<String>,
     pub hand: Hand,
     pub top_card: Card,
-    pub selected: usize
+    pub selected: usize,
+    pub wild_color: CardColor
 }
 
 impl AppState {
@@ -37,7 +38,8 @@ impl AppState {
             messages: VecDeque::new(),
             hand: Hand::default(),
             top_card: Card::Wild(CardColor::Red),
-            selected: 0
+            selected: 0,
+            wild_color: CardColor::None
         }
     }
 }
@@ -289,12 +291,58 @@ async fn main() -> Result<(), io::Error> {
                             KeyCode::Char('d') | KeyCode::Char(' ') => {
                                 Some(Action::DrawCard)
                             },
+                            KeyCode::Char('r') | KeyCode::Char('1') => {
+                                let app_state = app_state.clone();
+                                let mut app_state = app_state.write().unwrap();
+            
+                                app_state.wild_color = CardColor::Red;
+
+                                None
+                            },
+                            KeyCode::Char('y') | KeyCode::Char('2') => {
+                                let app_state = app_state.clone();
+                                let mut app_state = app_state.write().unwrap();
+            
+                                app_state.wild_color = CardColor::Yellow;
+
+                                None
+                            },
+                            KeyCode::Char('b') | KeyCode::Char('3') => {
+                                let app_state = app_state.clone();
+                                let mut app_state = app_state.write().unwrap();
+            
+                                app_state.wild_color = CardColor::Green;
+
+                                None
+                            },
+                            KeyCode::Char('g') | KeyCode::Char('4') => {
+                                let app_state = app_state.clone();
+                                let mut app_state = app_state.write().unwrap();
+            
+                                app_state.wild_color = CardColor::Blue;
+
+                                None
+                            }
                             KeyCode::Enter => {
                                 let app_state = app_state.clone();
                                 let mut app_state = app_state.write().unwrap();
                                 let chosen_card = app_state.hand.cards[app_state.selected];
-                                app_state.hand.last_choice = Some(app_state.selected);
-                                Some(Action::PlayCard(chosen_card))
+                                if chosen_card.color() == CardColor::None {
+                                    if app_state.wild_color != CardColor::None {
+                                        let card = match chosen_card {
+                                            Card::DrawFour(_) => Card::DrawFour(app_state.wild_color),
+                                            Card::Wild(_) => Card::Wild(app_state.wild_color),
+                                            _ => unreachable!("No card other than +4 and Wild will ever have None as a color")
+                                        };
+                                        app_state.hand.last_choice = Some(app_state.selected);
+                                        Some(Action::PlayCard(card))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    app_state.hand.last_choice = Some(app_state.selected);
+                                    Some(Action::PlayCard(chosen_card))
+                                }
                             }
                             _ => None
                         };
@@ -362,6 +410,12 @@ fn draw_action_screen(f: &mut ratatui::Frame, app_state: Arc<RwLock<AppState>>) 
 }
 
 fn draw_game_screen(f: &mut ratatui::Frame, app_state: Arc<RwLock<AppState>>) {
+
+    let app_state = app_state.read().unwrap();
+    let chosen_color_none = 
+        app_state.hand.cards.len() > app_state.selected 
+        && app_state.hand.cards[app_state.selected].color() == CardColor::None;
+
     let size = f.size();
 
     let block = Block::default()
@@ -369,21 +423,37 @@ fn draw_game_screen(f: &mut ratatui::Frame, app_state: Arc<RwLock<AppState>>) {
         .borders(Borders::ALL);
     f.render_widget(block, size);
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(1)
-        .constraints(
-            [
-                Constraint::Max(3),
-                Constraint::Length(6),
-                Constraint::Min(0),
-            ]
-            .as_ref(),
-        )
-        .split(size);
-
-    
-    let app_state = app_state.read().unwrap();
+    let chunks = match chosen_color_none {
+        true => {
+            Layout::default()
+                .direction(Direction::Vertical)
+                .margin(1)
+                .constraints(
+                    [
+                    Constraint::Max(3),
+                    Constraint::Length(6),
+                    Constraint::Min(0),
+                    Constraint::Max(4)
+                    ]
+                    .as_ref(),
+                )
+                .split(size)
+        },
+        false => {
+            Layout::default()
+                .direction(Direction::Vertical)
+                .margin(1)
+                .constraints(
+                    [
+                    Constraint::Max(3),
+                    Constraint::Length(6),
+                    Constraint::Min(0),
+                    ]
+                    .as_ref(),
+                )
+                .split(size)
+        }
+    };
      
     let message = app_state
         .messages
@@ -438,8 +508,42 @@ fn draw_game_screen(f: &mut ratatui::Frame, app_state: Arc<RwLock<AppState>>) {
             .block(Block::default().borders(Borders::ALL).style(Style::default().fg(color_to_tui_color(card.color()))));
         f.render_widget(card_block, card_chunks[i]);
     }
-}
 
+    if chosen_color_none {
+
+        let colors = [CardColor::Red, CardColor::Yellow, CardColor::Blue, CardColor::Green];
+
+        let card_width = if colors.len() != 0 {
+            size.width / colors.len() as u16
+        } else {
+            size.width
+        };
+
+        let card_height = card_width * 2;
+        let mut constraints: Vec<Constraint> = vec![];
+        for _ in 0..colors.len() {
+            constraints.push(Constraint::Length(card_width));
+        }
+
+        let card_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(constraints.clone())
+            .split(Rect::new(chunks[3].x, chunks[3].y, size.width, card_height));
+
+        for (i, &color) in colors.iter().enumerate() {
+            let style = if color == app_state.wild_color {
+                Style::default().bg(color_to_tui_color(color)).fg(Color::White)
+            } else {
+                Style::default()
+            };
+            let card_text = color.to_string();
+            let card_block = Paragraph::new(card_text)
+                .style(style)
+                .block(Block::default().borders(Borders::ALL).style(Style::default().fg(color_to_tui_color(color))));
+            f.render_widget(card_block, card_chunks[i]);
+        }       
+    }
+}
 
 fn color_to_tui_color(color: CardColor) -> Color {
     match color {
